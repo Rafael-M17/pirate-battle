@@ -1,0 +1,50 @@
+
+.game {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle, #175a73, #061a2b);
+  color: white;
+  text-align: center;
+}
+
+.menu {
+  padding: 40px;
+}
+
+.flag {
+  font-size: 75px;
+}
+
+.menu h1 {
+  font-size: clamp(42px, 8vw, 90px);
+  color: #ffd166;
+  margin: 15px 0;
+}
+
+.menu p {
+  font-size: 18px;
+}
+
+.menu button {
+  margin-top: 25px;
+  padding: 18px 60px;
+  border: 2px solid #ffd166;
+  border-radius: 12px;
+  background: #e7a83e;
+  color: #102333;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.menu button:hover {
+  background: #ffd166;
+}
+
+.footer {
+  margin-top: 65px;
+  opacity: 0.6;
+  font-size: 13px !important;
+}
