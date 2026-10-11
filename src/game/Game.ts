@@ -46,7 +46,6 @@ type WakeParticle = {
 }
 
 const CONFIG = {
-  matchDuration: 90,
   playerSpeed: 220,
   rotationSpeed: 2.8,
   playerRadius: 30,
@@ -59,7 +58,6 @@ const CONFIG = {
   enemyHealth: 3,
   chaserDamage: 25,
   shooterDamage: 10,
-  spawnInterval: 5,
   maxEnemies: 8,
   maxPerType: 5,
   shooterReload: 2.3,
@@ -69,6 +67,16 @@ const CONFIG = {
   defenderAlertDistance: 500,
 }
 
+export type GameOptions = {
+  matchDuration: number
+  spawnInterval: number
+}
+
+export const DEFAULT_GAME_OPTIONS: GameOptions = {
+  matchDuration: 90,
+  spawnInterval: 5,
+}
+
 export type GameResult = {
   outcome: 'victory' | 'game-over'
   score: number
@@ -76,6 +84,7 @@ export type GameResult = {
 }
 
 export class Game {
+  private readonly options: GameOptions
   private islands = new Islands()
   private app = new Application()
   private world = new Container()
@@ -104,9 +113,15 @@ export class Game {
   }
 
   private running = false
+  private paused = false
   private destroyed = false
   private initialized = false
   private onGameEnd: ((result: GameResult) => void) | null = null
+  private onPauseChange: ((paused: boolean) => void) | null = null
+
+  constructor(options: GameOptions = DEFAULT_GAME_OPTIONS) {
+    this.options = { ...options }
+  }
 
   private scoreText = new Text({
     text: 'SCORE: 0',
@@ -139,6 +154,16 @@ export class Game {
     if (!this.running) return
 
     const key = event.key.toLowerCase()
+    if (key === 'escape') {
+      event.preventDefault()
+      if (event.repeat) return
+      if (this.paused) this.resume()
+      else this.pause()
+      return
+    }
+
+    if (this.paused) return
+
     const controls = [
       'w', 'a', 's', 'd', 'q', 'e', ' ',
       'arrowup', 'arrowdown',
@@ -155,15 +180,22 @@ export class Game {
     this.keys.delete(event.key.toLowerCase())
   }
 
-  private clearKeys = () => {
+  private handleBlur = () => {
     this.keys.clear()
+    this.pause()
+  }
+
+  private handleVisibilityChange = () => {
+    if (document.hidden) this.handleBlur()
   }
 
   async start(
     element: HTMLElement,
-    onGameEnd: (result: GameResult) => void
+    onGameEnd: (result: GameResult) => void,
+    onPauseChange: (paused: boolean) => void
   ) {
     this.onGameEnd = onGameEnd
+    this.onPauseChange = onPauseChange
 
     await this.app.init({
       resizeTo: element,
@@ -289,7 +321,9 @@ export class Game {
     this.scoreText.position.set(20, 15)
     this.hpText.position.set(20, 45)
     this.timeText.position.set(20, 75)
-    this.timeText.text = 'TIME LEFT: 01:30'
+    this.timeText.text =
+      `TIME LEFT: ${String(Math.floor(this.options.matchDuration / 60)).padStart(2, '0')}:` +
+      String(this.options.matchDuration % 60).padStart(2, '0')
 
     this.app.stage.addChild(
       this.scoreText,
@@ -299,7 +333,8 @@ export class Game {
 
     window.addEventListener('keydown', this.keyDown)
     window.addEventListener('keyup', this.keyUp)
-    window.addEventListener('blur', this.clearKeys)
+    window.addEventListener('blur', this.handleBlur)
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
 
     this.running = true
 
@@ -719,7 +754,7 @@ export class Game {
     if (!this.running) return
 
     this.running = false
-    this.clearKeys()
+    this.keys.clear()
 
     for (const bullet of this.bullets) {
       this.world.removeChild(bullet.sprite)
@@ -1009,7 +1044,7 @@ export class Game {
   }
 
   private update = () => {
-    if (!this.ship) return
+    if (!this.ship || this.paused) return
 
     const dt = Math.min(
       this.app.ticker.deltaMS / 1000,
@@ -1021,14 +1056,14 @@ export class Game {
     if (!this.running) return
 
     this.elapsed += dt
-    if (this.elapsed >= CONFIG.matchDuration) {
-      this.elapsed = CONFIG.matchDuration
+    if (this.elapsed >= this.options.matchDuration) {
+      this.elapsed = this.options.matchDuration
       this.timeText.text = 'TIME LEFT: 00:00'
       this.endGame('victory')
       return
     }
 
-    const remaining = CONFIG.matchDuration - Math.floor(this.elapsed)
+    const remaining = this.options.matchDuration - Math.floor(this.elapsed)
     const minutes = Math.floor(remaining / 60)
     const seconds = remaining % 60
     this.timeText.text =
@@ -1141,7 +1176,7 @@ export class Game {
     // Alternate Chaser and Shooter spawns
     this.spawnTimer += dt
 
-    if (this.spawnTimer >= CONFIG.spawnInterval) {
+    if (this.spawnTimer >= this.options.spawnInterval) {
       this.spawnTimer = 0
 
       const first = this.nextEnemy
@@ -1168,6 +1203,22 @@ export class Game {
     this.updateCamera(dt)
   }
 
+  pause() {
+    if (!this.running || this.paused) return
+
+    this.paused = true
+    this.keys.clear()
+    this.onPauseChange?.(true)
+  }
+
+  resume() {
+    if (!this.running || !this.paused) return
+
+    this.keys.clear()
+    this.paused = false
+    this.onPauseChange?.(false)
+  }
+
   destroy() {
     if (this.destroyed) return
 
@@ -1176,7 +1227,8 @@ export class Game {
 
     window.removeEventListener('keydown', this.keyDown)
     window.removeEventListener('keyup', this.keyUp)
-    window.removeEventListener('blur', this.clearKeys)
+    window.removeEventListener('blur', this.handleBlur)
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
 
     if (this.initialized) {
       this.app.ticker.remove(this.update)
