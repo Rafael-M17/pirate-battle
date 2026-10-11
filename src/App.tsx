@@ -72,7 +72,7 @@ function App() {
       game.destroy()
       if (gameRef.current === game) gameRef.current = null
     }
-  }, [playing, gameSession])
+  }, [playing, gameSession, options])
 
   const playAgain = () => {
     setGameResult(null)

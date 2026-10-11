@@ -11,6 +11,7 @@ import {
 import {
   Islands,
   islandBoundaryRadius,
+  type IslandCannon,
   type Island,
 } from './Islands'
 type EnemyType = 'chaser' | 'shooter'
@@ -21,7 +22,7 @@ type Bullet = {
   vx: number
   vy: number
   distance: number
-  owner: 'player' | 'enemy'
+  owner: 'player' | 'enemy' | 'cannon'
 }
 
 type Enemy = {
@@ -32,6 +33,9 @@ type Enemy = {
   cooldown: number
   homeIsland: Island | null
   patrolAngle: number
+  routeTarget: { x: number; y: number } | null
+  routeBias: number
+  stuckTimer: number
 }
 
 type Explosion = {
@@ -48,7 +52,7 @@ type WakeParticle = {
 const CONFIG = {
   playerSpeed: 220,
   rotationSpeed: 2.8,
-  playerRadius: 30,
+  playerRadius: 42,
   bulletSpeed: 480,
   bulletRange: 650,
   frontReload: 0.8,
@@ -61,7 +65,11 @@ const CONFIG = {
   maxEnemies: 8,
   maxPerType: 5,
   shooterReload: 2.3,
-  enemyRadius: 27,
+  cannonRange: 820,
+  cannonReload: 2.8,
+  cannonDamage: 14,
+  cannonMuzzle: 72,
+  enemyRadius: 38,
   playerSpawnDistance: 430,
   enemySpawnDistance: 110,
   defenderAlertDistance: 500,
@@ -88,6 +96,10 @@ export class Game {
   private islands = new Islands()
   private app = new Application()
   private world = new Container()
+  private minimapLayer = new Container()
+  private minimapFrame = new Graphics()
+  private minimapIslands = new Graphics()
+  private minimapEntities = new Graphics()
   private worldWidth = 0
   private worldHeight = 0
   private ship: Sprite | null = null
@@ -96,6 +108,7 @@ export class Game {
   private keys = new Set<string>()
   private bullets: Bullet[] = []
   private enemies: Enemy[] = []
+  private cannons: IslandCannon[] = []
   private explosions: Explosion[] = []
   private wakeParticles: WakeParticle[] = []
   private wakeTimer = 0
@@ -104,6 +117,7 @@ export class Game {
   private score = 0
   private elapsed = 0
   private spawnTimer = 0
+  private minimapTimer = 0
   private nextEnemy: EnemyType = 'chaser'
 
   private cooldowns: Record<Weapon, number> = {
@@ -118,6 +132,7 @@ export class Game {
   private initialized = false
   private onGameEnd: ((result: GameResult) => void) | null = null
   private onPauseChange: ((paused: boolean) => void) | null = null
+  private handleRendererResize = () => this.drawMinimap()
 
   constructor(options: GameOptions = DEFAULT_GAME_OPTIONS) {
     this.options = { ...options }
@@ -256,6 +271,9 @@ export class Game {
     element.appendChild(this.app.canvas)
     this.app.stage.addChild(this.world)
     this.world.addChild(water, islandContainer)
+    this.cannons = this.islands.getPositions().flatMap(
+      island => island.cannons
+    )
 
     this.ship = new Sprite(player)
     this.ship.anchor.set(0.5)
@@ -330,6 +348,13 @@ export class Game {
       this.hpText,
       this.timeText
     )
+    this.minimapLayer.addChild(
+      this.minimapFrame,
+      this.minimapIslands,
+      this.minimapEntities
+    )
+    this.app.stage.addChild(this.minimapLayer)
+    this.app.renderer.on('resize', this.handleRendererResize)
 
     window.addEventListener('keydown', this.keyDown)
     window.addEventListener('keyup', this.keyUp)
@@ -338,18 +363,16 @@ export class Game {
 
     this.running = true
 
-    for (const [index, island] of
-      this.islands.getPositions().entries()) {
-      this.spawnEnemy(
-        index % 2 === 0 ? 'chaser' : 'shooter',
-        island
-      )
-    }
-
+    const islands = this.islands.getPositions()
+    const tropicalIsland = islands.find(island => island.style === 'tropical')
+    const rockyIsland = islands.find(island => island.style === 'rocky')
+    if (tropicalIsland) this.spawnEnemy('chaser', tropicalIsland)
+    if (rockyIsland) this.spawnEnemy('shooter', rockyIsland)
     this.spawnEnemy('chaser')
     this.spawnEnemy('shooter')
     this.nextEnemy = 'chaser'
     this.updateCamera(0, true)
+    this.drawMinimap()
 
     this.app.ticker.add(this.update)
   }
@@ -393,6 +416,9 @@ export class Game {
       cooldown: 1.5,
       homeIsland,
       patrolAngle: Math.random() * Math.PI * 2,
+      routeTarget: null,
+      routeBias: 0,
+      stuckTimer: 0,
     }
 
     this.enemies.push(enemy)
@@ -423,13 +449,31 @@ export class Game {
     )
   }
 
+  private spawnScheduledEnemy(type: EnemyType): boolean {
+    const preferredStyle = type === 'chaser' ? 'tropical' : 'rocky'
+    const homeIslands = this.islands.getPositions().filter(
+      island => island.style === preferredStyle
+    )
+
+    if (homeIslands.length > 0 && Math.random() < 0.5) {
+      const island = homeIslands[
+        Math.floor(Math.random() * homeIslands.length)
+      ]
+      if (this.spawnEnemy(type, island)) return true
+    }
+
+    return this.spawnEnemy(type)
+  }
+
   private findIslandSpawn(
     island: Island
   ): { x: number; y: number } | null {
+    const startAngle = Math.random() * Math.PI * 2
+
     for (let attempt = 0; attempt < 24; attempt++) {
-      const angle = attempt * Math.PI / 12
+      const angle = startAngle + attempt * Math.PI / 12
       const distance = islandBoundaryRadius(island, angle) +
-        CONFIG.enemyRadius + 48
+        CONFIG.enemyRadius + 38 + Math.random() * 30
       const x = island.x + Math.cos(angle) * distance
       const y = island.y + Math.sin(angle) * distance
 
@@ -539,6 +583,98 @@ export class Game {
     }
 
     return water
+  }
+
+  private drawMinimap() {
+    if (!this.ship || this.worldWidth === 0 || this.worldHeight === 0) {
+      return
+    }
+
+    const screenWidth = this.app.screen.width
+    const mapWidth = Math.min(190, Math.max(112, screenWidth * 0.34))
+    const mapHeight = mapWidth * 0.64
+    const inset = 8
+    const mapX = inset
+    const mapY = inset
+    const mapInnerWidth = mapWidth - inset * 2
+    const mapInnerHeight = mapHeight - inset * 2
+    const mapScaleX = mapInnerWidth / this.worldWidth
+    const mapScaleY = mapInnerHeight / this.worldHeight
+
+    this.minimapLayer.position.set(
+      screenWidth - mapWidth - 12,
+      110
+    )
+
+    this.minimapFrame.clear()
+    this.minimapFrame.roundRect(0, 0, mapWidth, mapHeight, 8)
+      .fill({ color: 0x062b3b, alpha: 0.9 })
+    this.minimapFrame.roundRect(0, 0, mapWidth, mapHeight, 8)
+      .stroke({ color: 0xb2e4d2, alpha: 0.85, width: 1.5 })
+    this.minimapFrame.rect(mapX, mapY, mapInnerWidth, mapInnerHeight)
+      .fill({ color: 0x087e9c, alpha: 0.82 })
+    this.minimapFrame.rect(mapX, mapY, mapInnerWidth, mapInnerHeight)
+      .stroke({ color: 0x73c5c1, alpha: 0.75, width: 1 })
+
+    this.minimapIslands.clear()
+    for (const island of this.islands.getPositions()) {
+      const fill = island.style === 'tropical'
+        ? 0x61b58a
+        : island.style === 'rocky'
+          ? 0xa7a995
+          : island.style === 'fortified'
+            ? 0xd2b966
+            : 0xb99a68
+
+      for (let index = 0; index < 20; index++) {
+        const angle = index / 20 * Math.PI * 2
+        const distance = islandBoundaryRadius(island, angle)
+        const x = mapX + (island.x + Math.cos(angle) * distance) * mapScaleX
+        const y = mapY + (island.y + Math.sin(angle) * distance) * mapScaleY
+
+        if (index === 0) this.minimapIslands.moveTo(x, y)
+        else this.minimapIslands.lineTo(x, y)
+      }
+      this.minimapIslands.closePath()
+      this.minimapIslands.fill({ color: fill, alpha: 0.92 })
+    }
+
+    this.minimapEntities.clear()
+    const cameraX = Math.max(0, -this.world.x)
+    const cameraY = Math.max(0, -this.world.y)
+    const cameraWidth = Math.min(this.app.screen.width, this.worldWidth)
+    const cameraHeight = Math.min(this.app.screen.height, this.worldHeight)
+    this.minimapEntities.rect(
+      mapX + cameraX * mapScaleX,
+      mapY + cameraY * mapScaleY,
+      cameraWidth * mapScaleX,
+      cameraHeight * mapScaleY
+    ).stroke({ color: 0xffffff, alpha: 0.9, width: 1 })
+
+    for (const enemy of this.enemies) {
+      const x = mapX + enemy.sprite.x * mapScaleX
+      const y = mapY + enemy.sprite.y * mapScaleY
+      this.minimapEntities.circle(x, y, 2.7)
+        .fill(enemy.type === 'chaser' ? 0xff6b5d : 0xffc85a)
+    }
+
+    for (const cannon of this.cannons) {
+      const x = mapX + cannon.x * mapScaleX
+      const y = mapY + cannon.y * mapScaleY
+      this.minimapEntities.rect(x - 2, y - 2, 4, 4)
+        .fill(0xff9f43)
+    }
+
+    this.minimapEntities.circle(
+      mapX + this.ship.x * mapScaleX,
+      mapY + this.ship.y * mapScaleY,
+      3.5
+    ).fill(0x72fff0)
+    this.minimapEntities.circle(
+      mapX + this.ship.x * mapScaleX,
+      mapY + this.ship.y * mapScaleY,
+      5
+    ).stroke({ color: 0xe4fffa, alpha: 0.95, width: 1 })
   }
 
   private updateCamera(dt = 0, immediate = false) {
@@ -669,16 +805,18 @@ export class Game {
     y: number,
     vx: number,
     vy: number,
-    owner: 'player' | 'enemy'
+    owner: 'player' | 'enemy' | 'cannon'
   ) {
     const sprite = new Sprite(this.textures.ball)
 
     sprite.anchor.set(0.5)
-    sprite.width = owner === 'enemy' ? 15 : 13
-    sprite.height = owner === 'enemy' ? 15 : 13
-    sprite.tint = owner === 'enemy'
-      ? 0xff7777
-      : 0xffffff
+    sprite.width = owner === 'player' ? 13 : 16
+    sprite.height = owner === 'player' ? 13 : 16
+    sprite.tint = owner === 'cannon'
+      ? 0xffb548
+      : owner === 'enemy'
+        ? 0xff7777
+        : 0xffffff
 
     sprite.position.set(x, y)
     this.world.addChild(sprite)
@@ -769,8 +907,55 @@ export class Game {
     })
   }
 
+  private updateCannons(dt: number) {
+    if (!this.ship) return
+
+    for (const cannon of this.cannons) {
+      const dx = this.ship.x - cannon.x
+      const dy = this.ship.y - cannon.y
+      const distance = Math.hypot(dx, dy)
+      const aim = Math.atan2(dy, dx)
+      cannon.sprite.rotation = aim
+      cannon.cooldown -= dt
+
+      if (
+        distance > CONFIG.cannonRange ||
+        distance <= CONFIG.cannonMuzzle ||
+        cannon.cooldown > 0
+      ) {
+        continue
+      }
+
+      const muzzleX = cannon.x + Math.cos(aim) * CONFIG.cannonMuzzle
+      const muzzleY = cannon.y + Math.sin(aim) * CONFIG.cannonMuzzle
+      if (
+        this.islands.segmentCollides(
+          muzzleX,
+          muzzleY,
+          this.ship.x,
+          this.ship.y,
+          5
+        )
+      ) {
+        continue
+      }
+
+      this.createBullet(
+        muzzleX,
+        muzzleY,
+        Math.cos(aim) * 360,
+        Math.sin(aim) * 360,
+        'cannon'
+      )
+      cannon.cooldown = CONFIG.cannonReload
+    }
+  }
+
   private updateEnemy(enemy: Enemy, dt: number) {
     if (!this.ship) return
+
+    const startX = enemy.sprite.x
+    const startY = enemy.sprite.y
 
     const playerDistance = Math.hypot(
       this.ship.x - enemy.sprite.x,
@@ -794,42 +979,64 @@ export class Game {
               (enemy.homeIsland.radius + 85),
         }
       : { x: this.ship.x, y: this.ship.y }
-    const dx = target.x - enemy.sprite.x
-    const dy = target.y - enemy.sprite.y
-    const distance = Math.hypot(dx, dy)
-    const targetAngle = Math.atan2(dx, -dy)
+    const targetDx = target.x - enemy.sprite.x
+    const targetDy = target.y - enemy.sprite.y
     const isChaser = enemy.type === 'chaser'
     const move = isChaser
       ? 1
-      : distance > 350
+      : playerDistance > 350
         ? 1
-        : distance < 240
+        : playerDistance < 240
           ? -1
           : 0
     const movementTarget = move > 0
       ? { x: target.x, y: target.y }
       : move < 0
         ? {
-            x: enemy.sprite.x - dx,
-            y: enemy.sprite.y - dy,
+          x: enemy.sprite.x - targetDx,
+          y: enemy.sprite.y - targetDy,
           }
         : null
-    const detourTarget = (movementTarget || isChaser && distance > 1)
-      ? this.islands.getDetourTarget(
+
+      if (!movementTarget) {
+        enemy.routeTarget = null
+      } else {
+        const routeDistance = enemy.routeTarget
+          ? Math.hypot(
+              enemy.routeTarget.x - enemy.sprite.x,
+              enemy.routeTarget.y - enemy.sprite.y
+            )
+          : Infinity
+        const directPathClear = !this.islands.segmentCollides(
           enemy.sprite.x,
           enemy.sprite.y,
-          movementTarget?.x ?? target.x,
-          movementTarget?.y ?? target.y,
+          movementTarget.x,
+          movementTarget.y,
           CONFIG.enemyRadius
         )
-      : null
 
-    const steeringAngle = detourTarget
-      ? Math.atan2(
-          detourTarget.x - enemy.sprite.x,
-          -(detourTarget.y - enemy.sprite.y)
-        )
-      : targetAngle
+        if (routeDistance < 28 || directPathClear) {
+          enemy.routeTarget = null
+        }
+
+        if (!enemy.routeTarget) {
+          enemy.routeTarget = this.islands.getDetourTarget(
+            enemy.sprite.x,
+            enemy.sprite.y,
+            movementTarget.x,
+            movementTarget.y,
+            CONFIG.enemyRadius,
+            enemy.routeBias
+          )
+        }
+      }
+
+      const steeringTarget = enemy.routeTarget ?? movementTarget ?? target
+      const dx = steeringTarget.x - enemy.sprite.x
+      const dy = steeringTarget.y - enemy.sprite.y
+      const targetAngle = Math.atan2(dx, -dy)
+
+    const steeringAngle = targetAngle
     let difference = Math.atan2(
       Math.sin(steeringAngle - enemy.sprite.rotation),
       Math.cos(steeringAngle - enemy.sprite.rotation)
@@ -845,13 +1052,11 @@ export class Game {
     enemy.sprite.rotation += difference
 
     if (enemy.type === 'chaser') {
-      const nextPosition = this.islands.resolve(
-        enemy.sprite.x +
-          Math.sin(enemy.sprite.rotation) *
-            CONFIG.chaserSpeed * dt,
-        enemy.sprite.y -
-          Math.cos(enemy.sprite.rotation) *
-            CONFIG.chaserSpeed * dt,
+      const nextPosition = this.islands.move(
+        enemy.sprite.x,
+        enemy.sprite.y,
+        Math.sin(enemy.sprite.rotation) * CONFIG.chaserSpeed * dt,
+        -Math.cos(enemy.sprite.rotation) * CONFIG.chaserSpeed * dt,
         CONFIG.enemyRadius
       )
 
@@ -883,9 +1088,9 @@ export class Game {
       let moveX = Math.sin(enemy.sprite.rotation) * move
       let moveY = -Math.cos(enemy.sprite.rotation) * move
 
-      if (detourTarget) {
-        const detourX = detourTarget.x - enemy.sprite.x
-        const detourY = detourTarget.y - enemy.sprite.y
+      if (enemy.routeTarget) {
+        const detourX = enemy.routeTarget.x - enemy.sprite.x
+        const detourY = enemy.routeTarget.y - enemy.sprite.y
         const detourDistance = Math.hypot(detourX, detourY)
 
         if (detourDistance > 0) {
@@ -894,11 +1099,11 @@ export class Game {
         }
       }
 
-      const nextPosition = this.islands.resolve(
-        enemy.sprite.x +
-          moveX * CONFIG.shooterSpeed * dt,
-        enemy.sprite.y +
-          moveY * CONFIG.shooterSpeed * dt,
+      const nextPosition = this.islands.move(
+        enemy.sprite.x,
+        enemy.sprite.y,
+        moveX * CONFIG.shooterSpeed * dt,
+        moveY * CONFIG.shooterSpeed * dt,
         CONFIG.enemyRadius
       )
 
@@ -942,6 +1147,29 @@ export class Game {
 
         enemy.cooldown = CONFIG.shooterReload
       }
+    }
+
+    const progress = Math.hypot(
+      enemy.sprite.x - startX,
+      enemy.sprite.y - startY
+    )
+    const distanceToTarget = movementTarget
+      ? Math.hypot(
+          movementTarget.x - enemy.sprite.x,
+          movementTarget.y - enemy.sprite.y
+        )
+      : 0
+
+    if (movementTarget && distanceToTarget > 80 && progress < 1.5) {
+      enemy.stuckTimer += dt
+    } else {
+      enemy.stuckTimer = 0
+    }
+
+    if (enemy.stuckTimer >= 1.1) {
+      enemy.stuckTimer = 0
+      enemy.routeTarget = null
+      enemy.routeBias = (enemy.routeBias + 0.5) % 1
     }
 
     // Only update living enemies
@@ -1000,7 +1228,11 @@ export class Game {
 
         if (distance < 33) {
           hit = true
-          this.damagePlayer(CONFIG.shooterDamage)
+          this.damagePlayer(
+            bullet.owner === 'cannon'
+              ? CONFIG.cannonDamage
+              : CONFIG.shooterDamage
+          )
           if (!this.running) return
         }
       }
@@ -1112,13 +1344,11 @@ export class Game {
       this.keys.has('arrowdown')
     ) movement--
 
-    const nextPosition = this.islands.resolve(
-      this.ship.x +
-      Math.sin(this.ship.rotation) *
-      CONFIG.playerSpeed * movement * dt,
-      this.ship.y -
-      Math.cos(this.ship.rotation) *
-      CONFIG.playerSpeed * movement * dt,
+    const nextPosition = this.islands.move(
+      this.ship.x,
+      this.ship.y,
+      Math.sin(this.ship.rotation) * CONFIG.playerSpeed * movement * dt,
+      -Math.cos(this.ship.rotation) * CONFIG.playerSpeed * movement * dt,
       CONFIG.playerRadius
     )
 
@@ -1183,12 +1413,14 @@ export class Game {
       const second: EnemyType =
         first === 'chaser' ? 'shooter' : 'chaser'
 
-      if (this.spawnEnemy(first)) {
+      if (this.spawnScheduledEnemy(first)) {
         this.nextEnemy = second
-      } else if (this.spawnEnemy(second)) {
+      } else if (this.spawnScheduledEnemy(second)) {
         this.nextEnemy = first
       }
     }
+
+    this.updateCannons(dt)
 
     // Enemy behavior
     for (const enemy of [...this.enemies]) {
@@ -1201,6 +1433,11 @@ export class Game {
     }
 
     this.updateCamera(dt)
+    this.minimapTimer += dt
+    if (this.minimapTimer >= 0.12) {
+      this.minimapTimer = 0
+      this.drawMinimap()
+    }
   }
 
   pause() {
@@ -1231,6 +1468,7 @@ export class Game {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange)
 
     if (this.initialized) {
+      this.app.renderer.off('resize', this.handleRendererResize)
       this.app.ticker.remove(this.update)
       this.app.destroy(true, { children: true })
     }
