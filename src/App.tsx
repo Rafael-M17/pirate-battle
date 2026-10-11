@@ -1,10 +1,13 @@
 
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   DEFAULT_GAME_OPTIONS,
   Game,
+  INITIAL_MISSION_PROGRESS,
   type GameOptions,
   type GameResult,
+  type MissionProgress,
 } from './game/Game'
 import './App.css'
 
@@ -37,8 +40,22 @@ function App() {
   const [paused, setPaused] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [options, setOptions] = useState<GameOptions>(loadOptions)
+  const [missionProgress, setMissionProgress] = useState<MissionProgress>(
+    { ...INITIAL_MISSION_PROGRESS }
+  )
+  const [objectivesCollapsed, setObjectivesCollapsed] = useState(false)
+  const [islandNotice, setIslandNotice] = useState(false)
   const [gameResult, setGameResult] = useState<GameResult | null>(null)
   const [gameSession, setGameSession] = useState(0)
+  const missionProgressHandlerRef = useRef<(
+    progress: MissionProgress,
+    discovered: boolean
+  ) => void>((progress, discovered) => {
+    flushSync(() => {
+      setMissionProgress({ ...progress })
+      if (discovered) setIslandNotice(true)
+    })
+  })
 
   useEffect(() => {
     try {
@@ -47,6 +64,12 @@ function App() {
       // Settings remain usable for the current page when storage is unavailable.
     }
   }, [options])
+
+  useEffect(() => {
+    if (!islandNotice) return
+    const timeout = window.setTimeout(() => setIslandNotice(false), 2200)
+    return () => window.clearTimeout(timeout)
+  }, [islandNotice])
 
   useEffect(() => {
     if (!playing || !gameContainer.current) return
@@ -63,6 +86,9 @@ function App() {
       }
     }, isPaused => {
       if (!cancelled) setPaused(isPaused)
+    }, (progress, discovered) => {
+      if (cancelled) return
+      missionProgressHandlerRef.current(progress, discovered)
     }).then(() => {
       if (cancelled) game.destroy()
     })
@@ -77,7 +103,21 @@ function App() {
   const playAgain = () => {
     setGameResult(null)
     setPaused(false)
+    setMissionProgress({ ...INITIAL_MISSION_PROGRESS })
+    setIslandNotice(false)
     setGameSession(session => session + 1)
+  }
+
+  const startGame = () => {
+    setGameResult(null)
+    setPaused(false)
+    setMissionProgress({ ...INITIAL_MISSION_PROGRESS })
+    setIslandNotice(false)
+    setPlaying(true)
+  }
+
+  const resetOptions = () => {
+    setOptions({ ...DEFAULT_GAME_OPTIONS })
   }
 
   const returnToMainMenu = () => {
@@ -86,13 +126,52 @@ function App() {
     setPlaying(false)
   }
 
+  const missionObjectives = [
+    {
+      label: 'ISLANDS DISCOVERED',
+      progress: missionProgress.islandsDiscovered,
+      total: missionProgress.islandsRequired,
+    },
+    {
+      label: 'ENEMY SHIPS',
+      progress: missionProgress.enemyShipsDefeated,
+      total: missionProgress.enemyShipsRequired,
+    },
+    {
+      label: 'FORT CANNONS',
+      progress: missionProgress.fortCannonsDestroyed,
+      total: missionProgress.fortCannonsRequired,
+    },
+  ]
+
   return (
-    <main className="game">
+    <main className={`game${!playing ? ' menuScreen' : ''}`}>
       {!playing ? (
-        <div className="menu">
-          <div className="flag">🏴‍☠️</div>
-          <h1>PIRATE BATTLE</h1>
-          <p>Prepare your ship for an epic naval battle.</p>
+        <>
+          <div className="menuBackdrop" aria-hidden="true">
+            <div className="menuIsland menuIslandNorth">
+              <div className="islandLand" />
+              <img className="islandPalm palmOne" src="/assets/png/default/tiles/tile_71.png" alt="" />
+              <img className="islandPalm palmTwo" src="/assets/png/default/tiles/tile_71.png" alt="" />
+              <img className="islandRock rockOne" src="/assets/png/default/tiles/tile_50.png" alt="" />
+            </div>
+            <div className="menuIsland menuIslandSouth">
+              <div className="islandLand" />
+              <img className="islandRock rockTwo" src="/assets/png/default/tiles/tile_50.png" alt="" />
+              <img className="islandPalm palmThree" src="/assets/png/default/tiles/tile_71.png" alt="" />
+            </div>
+            <span className="shipWake wakeOne" />
+            <span className="shipWake wakeTwo" />
+            <img className="menuShip leadShip" src="/assets/png/default/ships/ship_2.png" alt="" />
+            <img className="menuShip escortShip" src="/assets/png/default/ships/ship_12.png" alt="" />
+            <img className="menuShip enemyShip" src="/assets/png/default/ships/ship_24.png" alt="" />
+          </div>
+          <div className="menu">
+          <p className="menuEyebrow">JUNGLE GAMING PRESENTS</p>
+          <h1 className="menuLogo">
+            <img src="/assets/png/default/ui/menu/title_pirate_battle.png" alt="Pirate Battle" />
+          </h1>
+          <p className="menuTagline">Claim the islands. Silence the fortress. Rule the seas.</p>
           {showOptions ? (
             <section className="optionsPanel" aria-labelledby="optionsTitle">
               <h2 id="optionsTitle">OPTIONS</h2>
@@ -128,30 +207,91 @@ function App() {
                 />
                 <small>1-30 seconds</small>
               </label>
+              <button className="resetButton" onClick={resetOptions}>
+                RESET TO DEFAULTS
+              </button>
               <button className="secondaryButton" onClick={() => setShowOptions(false)}>
                 BACK
               </button>
             </section>
           ) : (
-            <>
-              <button onClick={() => setPlaying(true)}>
+            <div className="menuActions">
+              <button onClick={startGame}>
                 PLAY GAME
               </button>
               <button className="optionsButton" onClick={() => setShowOptions(true)}>
                 OPTIONS
               </button>
-            </>
+            </div>
+          )}
+          {!showOptions && (
+            <p className="voyageMeta">
+              <span>SESSION</span>
+              <strong>
+                {String(Math.floor(options.matchDuration / 60)).padStart(2, '0')}:
+                {String(options.matchDuration % 60).padStart(2, '0')}
+              </strong>
+              <span>3 OBJECTIVES</span>
+            </p>
           )}
           <p className="footer">
             Jungle Gaming Developer Challenge
           </p>
-        </div>
+          </div>
+        </>
       ) : (
         <div
           key={gameSession}
           ref={gameContainer}
           className="gameCanvas"
         />
+      )}
+      {playing && !gameResult && (
+        <>
+          <section
+            className={`missionPanel${objectivesCollapsed ? ' isCollapsed' : ''}`}
+            aria-label="Mission objectives"
+          >
+            <header className="missionPanelHeader">
+              <div>
+                {!objectivesCollapsed && <span>ACTIVE MISSION</span>}
+                <h2>CONQUEST OF THE SEAS</h2>
+              </div>
+              <button
+                className="missionToggle"
+                onClick={() => setObjectivesCollapsed(collapsed => !collapsed)}
+                aria-label={objectivesCollapsed ? 'Expand objectives' : 'Collapse objectives'}
+                aria-expanded={!objectivesCollapsed}
+              >
+                {objectivesCollapsed ? '+' : '\u2212'}
+              </button>
+            </header>
+            {!objectivesCollapsed && (
+              <ul className="missionList">
+                {missionObjectives.map(objective => {
+                  const complete = objective.progress >= objective.total
+                  return (
+                    <li
+                      key={objective.label}
+                      className={complete ? 'isComplete' : ''}
+                    >
+                      <span className="missionStatus" aria-hidden="true">
+                        {complete ? '\u2713' : '\u2022'}
+                      </span>
+                      <span>{objective.label}</span>
+                      <strong>{objective.progress}/{objective.total}</strong>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+          {islandNotice && (
+            <div className="islandNotice" role="status" aria-live="polite">
+              ISLAND DISCOVERED!
+            </div>
+          )}
+        </>
       )}
       {playing && gameResult && (
         <section
@@ -165,17 +305,23 @@ function App() {
             <p className="resultEyebrow">
               {gameResult.outcome === 'victory'
                 ? 'VICTORY'
-                : 'VOYAGE ENDED'}
+                : gameResult.outcome === 'time-up'
+                  ? 'TIME UP'
+                  : 'VOYAGE ENDED'}
             </p>
             <h2 id="resultTitle">
               {gameResult.outcome === 'victory'
                 ? 'BATTLE COMPLETE'
-                : 'GAME OVER'}
+                : gameResult.outcome === 'time-up'
+                  ? 'TIME UP'
+                  : 'GAME OVER'}
             </h2>
             <p className="resultDescription">
               {gameResult.outcome === 'victory'
                 ? 'The ocean is yours, captain.'
-                : 'Your ship has been lost at sea.'}
+                : gameResult.outcome === 'time-up'
+                  ? 'The mission time has expired.'
+                  : 'Your ship has been lost at sea.'}
             </p>
             <div className="resultStats">
               <div>

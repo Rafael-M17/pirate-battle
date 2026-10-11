@@ -14,8 +14,12 @@ export type IslandCannon = {
   x: number
   y: number
   sprite: Sprite
+  healthBar: Graphics
+  health: number
   baseAngle: number
   cooldown: number
+  destroyed: boolean
+  hitFlash: number
 }
 
 export type Island = {
@@ -25,6 +29,8 @@ export type Island = {
   phase: number
   style: IslandStyle
   cannons: IslandCannon[]
+  missionIsland: boolean
+  discovered: boolean
 }
 
 export function islandBoundaryRadius(
@@ -48,6 +54,74 @@ export function islandBoundaryRadius(
   )
 }
 
+export function createIslandLayout(width: number, height: number): Island[] {
+  const positions: Array<{
+    x: number
+    y: number
+    radius: number
+    style: IslandStyle
+    missionIsland: boolean
+  }> = [
+    { x: 0.13, y: 0.17, radius: 154, style: 'tropical', missionIsland: true },
+    { x: 0.86, y: 0.17, radius: 170, style: 'rocky', missionIsland: true },
+    { x: 0.13, y: 0.83, radius: 142, style: 'wreck', missionIsland: true },
+    { x: 0.87, y: 0.83, radius: 172, style: 'fortified', missionIsland: true },
+    { x: 0.5, y: 0.12, radius: 52, style: 'rocky', missionIsland: false },
+    { x: 0.5, y: 0.88, radius: 48, style: 'tropical', missionIsland: false },
+  ]
+
+  return positions.map((position, index) => ({
+    x: position.x * width,
+    y: position.y * height,
+    radius: position.radius,
+    phase: index * 1.7 + 0.4,
+    style: position.style,
+    cannons: [],
+    missionIsland: position.missionIsland,
+    discovered: false,
+  }))
+}
+
+export function findIslandsAlongRoute(
+  islands: readonly Island[],
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  playerRadius: number,
+  coastBuffer = 220
+): Island[] {
+  const segmentX = endX - startX
+  const segmentY = endY - startY
+  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY
+  const discovered: Island[] = []
+
+  for (const island of islands) {
+    if (!island.missionIsland || island.discovered) continue
+
+    const projection = segmentLengthSquared > 0
+      ? Math.max(0, Math.min(1,
+          ((island.x - startX) * segmentX +
+            (island.y - startY) * segmentY) / segmentLengthSquared
+        ))
+      : 0
+    const closestX = startX + segmentX * projection
+    const closestY = startY + segmentY * projection
+    const dx = closestX - island.x
+    const dy = closestY - island.y
+    const distanceToCenter = Math.hypot(dx, dy)
+    const angle = Math.atan2(dy, dx)
+    const distanceToCoast = distanceToCenter -
+      islandBoundaryRadius(island, angle) * 1.12
+
+    if (distanceToCoast <= playerRadius + coastBuffer) {
+      discovered.push(island)
+    }
+  }
+
+  return discovered
+}
+
 export class Islands {
   private container = new Container()
   private obstacles: Island[] = []
@@ -64,32 +138,10 @@ export class Islands {
       Assets.load<Texture>('/assets/png/default/ship_parts/cannon_mobile.png'),
     ])
 
-    const positions: Array<{
-      x: number
-      y: number
-      radius: number
-      style: IslandStyle
-    }> = [
-      { x: 0.13, y: 0.17, radius: 154, style: 'tropical' },
-      { x: 0.86, y: 0.17, radius: 170, style: 'rocky' },
-      { x: 0.13, y: 0.83, radius: 142, style: 'wreck' },
-      { x: 0.87, y: 0.83, radius: 172, style: 'fortified' },
-      { x: 0.5, y: 0.12, radius: 52, style: 'rocky' },
-      { x: 0.5, y: 0.88, radius: 48, style: 'tropical' },
-    ]
+    const obstacles = createIslandLayout(width, height)
 
-    for (const [index, position] of positions.entries()) {
-      const x = position.x * width
-      const y = position.y * height
-      const radius = position.radius
-      const obstacle: Island = {
-        x,
-        y,
-        radius,
-        phase: index * 1.7 + 0.4,
-        style: position.style,
-        cannons: [],
-      }
+    for (const [index, obstacle] of obstacles.entries()) {
+      const { x, y, radius } = obstacle
 
       const island = new Container()
       island.position.set(x, y)
@@ -99,7 +151,7 @@ export class Islands {
         rocky: { shore: 0x7f998e, sand: 0xc9c2a3 },
         wreck: { shore: 0x6f9f9a, sand: 0xd9c394 },
         fortified: { shore: 0x667f72, sand: 0xd3c190 },
-      }[position.style]
+      }[obstacle.style]
 
       const shoal = new Graphics()
       this.traceContour(shoal, obstacle, 1.24)
@@ -114,8 +166,8 @@ export class Islands {
 
       const sandSprite = new TilingSprite({
         texture: sand,
-        width: position.radius * 2.2,
-        height: position.radius * 2.2,
+        width: radius * 2.2,
+        height: radius * 2.2,
       })
       sandSprite.anchor.set(0.5)
       sandSprite.tileScale.set(0.82)
@@ -137,7 +189,7 @@ export class Islands {
       ]
       const detailScale = Math.min(1, radius / 145)
 
-      if (position.style === 'tropical') {
+      if (obstacle.style === 'tropical') {
         for (const [featureIndex, offset] of featureOffsets.entries()) {
           if ((featureIndex + index) % 2 !== 0) continue
 
@@ -151,7 +203,7 @@ export class Islands {
         }
       }
 
-      if (position.style === 'rocky' || position.style === 'fortified') {
+      if (obstacle.style === 'rocky' || obstacle.style === 'fortified') {
         for (const [featureIndex, offset] of featureOffsets.entries()) {
           if ((featureIndex + index) % 3 === 0) continue
 
@@ -165,7 +217,7 @@ export class Islands {
         }
       }
 
-      if (position.style === 'wreck') {
+      if (obstacle.style === 'wreck') {
         const hull = new Sprite(wreckHull)
         hull.anchor.set(0.5)
         hull.position.set(-radius * 0.08, -radius * 0.02)
@@ -191,7 +243,7 @@ export class Islands {
         }
       }
 
-      if (position.style === 'fortified') {
+      if (obstacle.style === 'fortified') {
         const fort = new Graphics()
         const wall = new Graphics()
         const wallPoints = 16
@@ -220,8 +272,10 @@ export class Islands {
         island.addChild(fort)
 
         for (const angle of [Math.PI, Math.PI / 3, Math.PI * 5 / 3]) {
-          const localX = Math.cos(angle) * radius * 0.82
-          const localY = Math.sin(angle) * radius * 0.82
+          const cannonDistance =
+            islandBoundaryRadius(obstacle, angle) * 1.16
+          const localX = Math.cos(angle) * cannonDistance
+          const localY = Math.sin(angle) * cannonDistance
           const platform = new Graphics()
           platform.circle(localX, localY, 20)
             .fill({ color: 0x6d705f })
@@ -237,12 +291,26 @@ export class Islands {
           cannon.rotation = angle
           island.addChild(cannon)
 
+          const healthBar = new Graphics()
+          healthBar.position.set(localX - 13, localY - 19)
+          healthBar.roundRect(0, 0, 26, 4, 2)
+            .fill({ color: 0x541f1c, alpha: 0.95 })
+          healthBar.roundRect(0, 0, 26, 4, 2)
+            .stroke({ color: 0xf5e9c8, alpha: 0.9, width: 1 })
+          healthBar.roundRect(1, 1, 24, 2, 1)
+            .fill(0x54df83)
+          island.addChild(healthBar)
+
           obstacle.cannons.push({
             x: x + localX,
             y: y + localY,
             sprite: cannon,
+            healthBar,
+            health: 3,
             baseAngle: angle,
-            cooldown: 1.2 + Math.random() * 1.2,
+            cooldown: 1.8 + Math.random() * 0.7,
+            destroyed: false,
+            hitFlash: 0,
           })
         }
       }

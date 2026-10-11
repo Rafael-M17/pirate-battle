@@ -2,72 +2,259 @@
 .game {
   position: relative;
   overflow: hidden;
-  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle, #175a73, #061a2b);
+  background: #0a4058;
   color: white;
   text-align: center;
 }
 
+.game.menuScreen {
+  justify-content: flex-start;
+  text-align: left;
+  isolation: isolate;
+  background: #0a4058;
+}
+
 .gameCanvas {
   width: 100%;
-  height: 100vh;
+  height: 100svh;
 }
 
 .menu {
-  padding: 40px;
+  position: relative;
+  z-index: 1;
+  width: min(540px, calc(100% - 48px));
+  margin: 0 auto 0 clamp(24px, 7vw, 112px);
+  padding: 34px 0;
+  box-sizing: border-box;
 }
 
-.flag {
-  font-size: 75px;
+.menuBackdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  background-color: #0d5870;
+  background-image:
+    radial-gradient(ellipse at 76% 40%, rgb(43 141 157 / 65%), transparent 34%),
+    radial-gradient(ellipse at 55% 88%, rgb(9 80 106 / 85%), transparent 45%),
+    repeating-linear-gradient(169deg, transparent 0 42px, rgb(157 223 210 / 8%) 43px, transparent 45px 100px),
+    linear-gradient(112deg, #082d47 0%, #0c546e 49%, #10485e 100%);
 }
 
-.menu h1 {
-  font-size: clamp(42px, 8vw, 90px);
-  color: #ffd166;
-  margin: 15px 0;
+.menuBackdrop::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(4 27 44 / 90%) 0%, rgb(5 34 49 / 75%) 34%, rgb(7 43 56 / 20%) 67%, transparent 100%);
+  content: '';
 }
 
-.menu p {
-  font-size: 18px;
+.menuIsland {
+  position: absolute;
+  filter: drop-shadow(0 25px 18px rgb(0 20 31 / 42%));
+}
+
+.menuIsland::before,
+.menuIsland .islandLand {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(20% 13%, 34% 5%, 49% 8%, 65% 4%, 79% 15%, 91% 31%, 95% 48%, 88% 67%, 75% 80%, 58% 91%, 40% 95%, 25% 88%, 12% 77%, 5% 59%, 7% 39%, 12% 25%);
+}
+
+.menuIsland::before {
+  inset: -7%;
+  background: #55b8ac;
+  content: '';
+  opacity: 0.65;
+}
+
+.menuIsland .islandLand {
+  background-color: #dfc990;
+  background-image: url('/assets/png/default/tiles/tile_4.png');
+  background-repeat: repeat;
+  background-size: 74px 74px;
+  box-shadow: inset 0 0 26px rgb(93 72 37 / 28%);
+}
+
+.menuIslandNorth {
+  top: 7%;
+  right: 4%;
+  width: clamp(250px, 31vw, 430px);
+  aspect-ratio: 1.48;
+  transform: rotate(-12deg);
+}
+
+.menuIslandSouth {
+  right: 18%;
+  bottom: -20%;
+  width: clamp(330px, 45vw, 630px);
+  aspect-ratio: 1.6;
+  transform: rotate(9deg);
+  opacity: 0.86;
+}
+
+.islandPalm,
+.islandRock {
+  position: absolute;
+  z-index: 1;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.islandPalm {
+  width: clamp(32px, 4vw, 58px);
+}
+
+.islandRock {
+  width: clamp(34px, 4vw, 56px);
+}
+
+.palmOne { left: 32%; top: 26%; }
+.palmTwo { left: 59%; top: 48%; width: clamp(26px, 3vw, 42px); }
+.palmThree { left: 57%; top: 30%; }
+.rockOne { left: 70%; top: 25%; }
+.rockTwo { left: 29%; top: 45%; }
+
+.menuShip {
+  position: absolute;
+  z-index: 1;
+  width: clamp(82px, 10vw, 142px);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 13px rgb(0 16 28 / 50%));
+  animation: ship-drift 5.2s ease-in-out infinite;
+}
+
+.leadShip {
+  top: 27%;
+  right: 25%;
+  width: clamp(118px, 14vw, 190px);
+  transform: rotate(-24deg);
+}
+
+.escortShip {
+  right: 6%;
+  bottom: 18%;
+  transform: rotate(25deg);
+  animation-delay: -1.8s;
+}
+
+.enemyShip {
+  right: 43%;
+  bottom: 10%;
+  width: clamp(72px, 8vw, 112px);
+  transform: rotate(18deg);
+  animation-delay: -3.1s;
+}
+
+.shipWake {
+  position: absolute;
+  z-index: 0;
+  width: clamp(100px, 14vw, 195px);
+  height: 20px;
+  border-top: 2px solid rgb(201 244 230 / 48%);
+  border-radius: 50%;
+  filter: blur(1px);
+  transform: rotate(-18deg);
+}
+
+.wakeOne { top: 47%; right: 22%; }
+.wakeTwo { right: 4%; bottom: 31%; transform: rotate(20deg); }
+
+.menuEyebrow {
+  margin: 0 0 14px;
+  color: #86d0c4;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.menuLogo {
+  width: min(100%, 505px);
+  margin: 0 0 14px;
+  line-height: 0;
+}
+
+.menuLogo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 16px rgb(0 12 22 / 45%));
+}
+
+.menuTagline {
+  max-width: 420px;
+  margin: 0 0 28px !important;
+  color: #e2eeeb;
+  font-size: clamp(15px, 1.7vw, 18px) !important;
+  line-height: 1.5;
+}
+
+.menuActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .menu button {
-  margin-top: 25px;
-  padding: 18px 60px;
-  border: 2px solid #ffd166;
-  border-radius: 12px;
-  background: #e7a83e;
-  color: #102333;
-  font-size: 22px;
-  font-weight: bold;
+  min-width: 178px;
+  min-height: 52px;
+  margin: 0;
+  padding: 13px 24px;
+  border: 1px solid #ffe39a;
+  border-radius: 5px;
+  background: linear-gradient(#f4c35e, #d99532);
+  box-shadow: 0 6px 0 #815226, 0 12px 24px rgb(0 0 0 / 25%);
+  color: #182f3a;
+  font-size: 15px;
+  font-weight: 900;
   cursor: pointer;
 }
 
 .menu button:hover {
-  background: #ffd166;
+  background: linear-gradient(#ffe29a, #ebb34e);
 }
 
 .menu .optionsButton {
-  display: block;
-  margin: 12px auto 0;
-  padding: 12px 42px;
-  border: 1px solid rgb(255 209 102 / 65%);
-  background: transparent;
-  color: #fff2ca;
-  font-size: 15px;
+  min-width: 136px;
+  background: rgb(5 31 47 / 68%);
+  box-shadow: 0 6px 0 rgb(0 14 24 / 55%);
+  color: #fff0c3;
+}
+
+.menu .optionsButton:hover {
+  background: rgb(15 69 83 / 90%);
+}
+
+.voyageMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 29px !important;
+  color: #a9c8c8;
+  font-size: 10px !important;
+  font-weight: 800;
+}
+
+.voyageMeta strong {
+  color: #ffd166;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .optionsPanel {
   width: min(100%, 440px);
-  margin: 28px auto 0;
-  padding: 24px;
-  border: 1px solid rgb(255 209 102 / 35%);
-  border-radius: 14px;
-  background: rgb(5 25 39 / 70%);
+  margin: 18px 0 0;
+  padding: 34px 36px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/png/default/ui/menu/panel_menu.png') center / 100% 100% no-repeat;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .optionsPanel h2 {
@@ -108,6 +295,22 @@
   cursor: pointer;
 }
 
+.optionsPanel .resetButton {
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 8px;
+  border: 1px solid rgb(255 209 102 / 65%);
+  border-radius: 4px;
+  background: rgb(5 31 47 / 72%);
+  box-shadow: none;
+  color: #ffe7a0;
+  font-size: 12px;
+}
+
+.optionsPanel .resetButton:hover {
+  background: rgb(27 73 82 / 90%);
+}
+
 .pauseButton {
   position: absolute;
   top: 18px;
@@ -135,10 +338,131 @@
   margin-bottom: 28px;
 }
 
+.missionPanel {
+  position: absolute;
+  top: 244px;
+  right: 18px;
+  z-index: 1;
+  width: min(244px, calc(100% - 28px));
+  padding: 11px 12px 9px;
+  border: 1px solid rgb(255 209 102 / 58%);
+  border-radius: 8px;
+  background: rgb(4 30 45 / 91%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 26%);
+  text-align: left;
+  backdrop-filter: blur(4px);
+}
+
+.missionPanel.isCollapsed {
+  width: min(244px, calc(100% - 28px));
+  padding-block: 8px;
+}
+
+.missionPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.missionPanelHeader span {
+  display: block;
+  margin-bottom: 2px;
+  color: #87c6c4;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.missionPanelHeader h2 {
+  margin: 0;
+  color: #ffd166;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.missionToggle {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 7%);
+  color: #fff2ca;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.missionToggle:hover {
+  background: rgb(255 209 102 / 17%);
+}
+
+.missionList {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 9px 0 0;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  list-style: none;
+}
+
+.missionList li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  color: #d7e5e5;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.missionList li strong {
+  color: #ffd166;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.missionStatus {
+  color: #91a9ab;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+}
+
+.missionList li.isComplete,
+.missionList li.isComplete strong,
+.missionList li.isComplete .missionStatus {
+  color: #68e49c;
+}
+
+.islandNotice {
+  position: absolute;
+  top: 116px;
+  left: 50%;
+  z-index: 2;
+  padding: 8px 14px;
+  border: 1px solid rgb(255 209 102 / 65%);
+  border-radius: 6px;
+  background: rgb(4 30 45 / 88%);
+  color: #ffe08a;
+  font-size: 13px;
+  font-weight: 900;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: result-enter 220ms ease-out both;
+}
+
 .footer {
-  margin-top: 65px;
-  opacity: 0.6;
-  font-size: 13px !important;
+  margin-top: 30px !important;
+  color: #9bb7ba;
+  opacity: 0.78;
+  font-size: 11px !important;
+}
+
+@keyframes ship-drift {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -9px; }
 }
 
 .resultOverlay {
@@ -257,7 +581,129 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .resultCard {
+  .resultCard,
+  .islandNotice,
+  .menuShip {
     animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .game.menuScreen {
+    align-items: center;
+    overflow-y: auto;
+  }
+
+  .menu {
+    width: min(500px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 28px 0;
+  }
+
+  .menuBackdrop::after {
+    background: linear-gradient(180deg, rgb(4 27 44 / 78%) 0%, rgb(5 34 49 / 78%) 48%, rgb(7 43 56 / 25%) 100%);
+  }
+
+  .menuIslandNorth {
+    top: 7%;
+    right: -14%;
+    width: clamp(230px, 64vw, 360px);
+  }
+
+  .menuIslandSouth {
+    right: -12%;
+    bottom: -13%;
+    width: clamp(320px, 84vw, 480px);
+  }
+
+  .leadShip {
+    top: 34%;
+    right: 4%;
+    width: clamp(104px, 28vw, 150px);
+    opacity: 0.74;
+  }
+
+  .escortShip {
+    right: 0;
+    bottom: 10%;
+    width: 86px;
+  }
+
+  .enemyShip {
+    right: 31%;
+    bottom: 3%;
+    width: 72px;
+  }
+
+  .menuLogo {
+    width: min(100%, 440px);
+  }
+
+  .menuTagline {
+    max-width: 330px;
+  }
+
+  .menuActions {
+    align-items: stretch;
+    flex-direction: column;
+    width: min(100%, 280px);
+  }
+
+  .menu .optionsButton {
+    width: 100%;
+  }
+
+  .optionsPanel {
+    width: 100%;
+    padding: 30px 28px;
+  }
+}
+
+@media (max-width: 420px) {
+  .optionsPanel {
+    padding: 28px 23px;
+  }
+
+  .settingControl {
+    margin: 14px 0 18px;
+  }
+}
+
+@media (max-height: 620px) and (min-width: 761px) {
+  .menu {
+    padding-block: 18px;
+  }
+
+  .menuLogo {
+    width: min(100%, 380px);
+  }
+
+  .menuTagline {
+    margin-bottom: 18px !important;
+  }
+
+  .voyageMeta,
+  .footer {
+    margin-top: 18px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .missionPanel {
+    top: 204px;
+    right: 10px;
+    width: min(224px, calc(100% - 20px));
+  }
+
+  .missionPanel.isCollapsed {
+    width: min(224px, calc(100% - 20px));
+  }
+
+  .missionPanelHeader h2 {
+    font-size: 11px;
+  }
+
+  .missionList li {
+    font-size: 9px;
   }
 }

@@ -10,6 +10,7 @@ import {
 } from 'pixi.js'
 import {
   Islands,
+  findIslandsAlongRoute,
   islandBoundaryRadius,
   type IslandCannon,
   type Island,
@@ -65,10 +66,11 @@ const CONFIG = {
   maxEnemies: 8,
   maxPerType: 5,
   shooterReload: 2.3,
-  cannonRange: 820,
-  cannonReload: 2.8,
-  cannonDamage: 14,
-  cannonMuzzle: 72,
+  cannonRange: 350,
+  cannonReloadMin: 1.8,
+  cannonReloadMax: 2.5,
+  cannonDamage: 10,
+  cannonMuzzle: 20,
   enemyRadius: 38,
   playerSpawnDistance: 430,
   enemySpawnDistance: 110,
@@ -81,14 +83,32 @@ export type GameOptions = {
 }
 
 export const DEFAULT_GAME_OPTIONS: GameOptions = {
-  matchDuration: 90,
+  matchDuration: 180,
   spawnInterval: 5,
 }
 
 export type GameResult = {
-  outcome: 'victory' | 'game-over'
+  outcome: 'victory' | 'game-over' | 'time-up'
   score: number
   survivedSeconds: number
+}
+
+export type MissionProgress = {
+  islandsDiscovered: number
+  islandsRequired: number
+  enemyShipsDefeated: number
+  enemyShipsRequired: number
+  fortCannonsDestroyed: number
+  fortCannonsRequired: number
+}
+
+export const INITIAL_MISSION_PROGRESS: MissionProgress = {
+  islandsDiscovered: 0,
+  islandsRequired: 4,
+  enemyShipsDefeated: 0,
+  enemyShipsRequired: 10,
+  fortCannonsDestroyed: 0,
+  fortCannonsRequired: 3,
 }
 
 export class Game {
@@ -115,6 +135,8 @@ export class Game {
 
   private health = 100
   private score = 0
+  private enemyShipsDefeated = 0
+  private missionProgress: MissionProgress = { ...INITIAL_MISSION_PROGRESS }
   private elapsed = 0
   private spawnTimer = 0
   private minimapTimer = 0
@@ -132,6 +154,10 @@ export class Game {
   private initialized = false
   private onGameEnd: ((result: GameResult) => void) | null = null
   private onPauseChange: ((paused: boolean) => void) | null = null
+  private onMissionProgress: (
+    progress: MissionProgress,
+    islandDiscovered: boolean
+  ) => void = () => undefined
   private handleRendererResize = () => this.drawMinimap()
 
   constructor(options: GameOptions = DEFAULT_GAME_OPTIONS) {
@@ -157,7 +183,7 @@ export class Game {
   })
 
   private timeText = new Text({
-    text: 'TIME LEFT: 01:30',
+    text: 'TIME LEFT: 03:00',
     style: {
       fill: '#ffffff',
       fontSize: 24,
@@ -207,10 +233,15 @@ export class Game {
   async start(
     element: HTMLElement,
     onGameEnd: (result: GameResult) => void,
-    onPauseChange: (paused: boolean) => void
+    onPauseChange: (paused: boolean) => void,
+    onMissionProgress: (
+      progress: MissionProgress,
+      islandDiscovered: boolean
+    ) => void
   ) {
     this.onGameEnd = onGameEnd
     this.onPauseChange = onPauseChange
+    this.onMissionProgress = onMissionProgress
 
     await this.app.init({
       resizeTo: element,
@@ -274,6 +305,16 @@ export class Game {
     this.cannons = this.islands.getPositions().flatMap(
       island => island.cannons
     )
+    this.missionProgress = {
+      islandsDiscovered: 0,
+      islandsRequired: this.islands.getPositions().filter(
+        island => island.missionIsland
+      ).length,
+      enemyShipsDefeated: 0,
+      enemyShipsRequired: INITIAL_MISSION_PROGRESS.enemyShipsRequired,
+      fortCannonsDestroyed: 0,
+      fortCannonsRequired: this.cannons.length,
+    }
 
     this.ship = new Sprite(player)
     this.ship.anchor.set(0.5)
@@ -362,14 +403,13 @@ export class Game {
     document.addEventListener('visibilitychange', this.handleVisibilityChange)
 
     this.running = true
+    this.publishMissionProgress()
 
     const islands = this.islands.getPositions()
     const tropicalIsland = islands.find(island => island.style === 'tropical')
     const rockyIsland = islands.find(island => island.style === 'rocky')
     if (tropicalIsland) this.spawnEnemy('chaser', tropicalIsland)
     if (rockyIsland) this.spawnEnemy('shooter', rockyIsland)
-    this.spawnEnemy('chaser')
-    this.spawnEnemy('shooter')
     this.nextEnemy = 'chaser'
     this.updateCamera(0, true)
     this.drawMinimap()
@@ -463,6 +503,56 @@ export class Game {
     }
 
     return this.spawnEnemy(type)
+  }
+
+  private publishMissionProgress(islandDiscovered = false) {
+    const islandsDiscovered = this.islands.getPositions().filter(
+      island => island.missionIsland && island.discovered
+    ).length
+    const fortCannonsDestroyed = this.cannons.filter(
+      cannon => cannon.destroyed
+    ).length
+
+    this.missionProgress = {
+      ...this.missionProgress,
+      islandsDiscovered,
+      enemyShipsDefeated: this.enemyShipsDefeated,
+      fortCannonsDestroyed,
+    }
+    this.onMissionProgress({ ...this.missionProgress }, islandDiscovered)
+
+    if (
+      this.missionProgress.islandsDiscovered >= this.missionProgress.islandsRequired &&
+      this.missionProgress.enemyShipsDefeated >= this.missionProgress.enemyShipsRequired &&
+      this.missionProgress.fortCannonsDestroyed >= this.missionProgress.fortCannonsRequired
+    ) {
+      this.endGame('victory')
+    }
+  }
+
+  private discoverNearbyIslands(previousX: number, previousY: number) {
+    if (!this.ship) return
+
+    const newlyDiscovered = findIslandsAlongRoute(
+      this.islands.getPositions(),
+      previousX,
+      previousY,
+      this.ship.x,
+      this.ship.y,
+      CONFIG.playerRadius
+    )
+
+    for (const island of newlyDiscovered) {
+      island.discovered = true
+      this.publishMissionProgress(true)
+    }
+  }
+
+  private get enemySpawnInterval() {
+    return Math.min(
+      this.options.spawnInterval,
+      this.options.matchDuration / 12
+    )
   }
 
   private findIslandSpawn(
@@ -618,13 +708,16 @@ export class Game {
 
     this.minimapIslands.clear()
     for (const island of this.islands.getPositions()) {
-      const fill = island.style === 'tropical'
+      const baseFill = island.style === 'tropical'
         ? 0x61b58a
         : island.style === 'rocky'
           ? 0xa7a995
           : island.style === 'fortified'
             ? 0xd2b966
             : 0xb99a68
+      const fill = island.missionIsland && !island.discovered
+        ? 0x677d82
+        : baseFill
 
       for (let index = 0; index < 20; index++) {
         const angle = index / 20 * Math.PI * 2
@@ -659,6 +752,7 @@ export class Game {
     }
 
     for (const cannon of this.cannons) {
+      if (cannon.destroyed) continue
       const x = mapX + cannon.x * mapScaleX
       const y = mapY + cannon.y * mapScaleY
       this.minimapEntities.rect(x - 2, y - 2, 4, 4)
@@ -765,12 +859,12 @@ export class Game {
     enemy.bar.position.copyFrom(enemy.sprite.position)
   }
 
-  private explode(x: number, y: number) {
+  private explode(x: number, y: number, size = 85) {
     const sprite = new Sprite(this.textures.explosion)
 
     sprite.anchor.set(0.5)
-    sprite.width = 85
-    sprite.height = 85
+    sprite.width = size
+    sprite.height = size
     sprite.position.set(x, y)
 
     this.world.addChild(sprite)
@@ -796,7 +890,9 @@ export class Game {
 
     if (scored) {
       this.score++
+      this.enemyShipsDefeated++
       this.scoreText.text = `SCORE: ${this.score}`
+      this.publishMissionProgress()
     }
   }
 
@@ -911,11 +1007,18 @@ export class Game {
     if (!this.ship) return
 
     for (const cannon of this.cannons) {
+      if (cannon.destroyed) continue
+
+      if (cannon.hitFlash > 0) {
+        cannon.hitFlash = Math.max(0, cannon.hitFlash - dt)
+        cannon.sprite.tint = cannon.hitFlash > 0 ? 0xff9776 : 0xffffff
+      }
+
       const dx = this.ship.x - cannon.x
       const dy = this.ship.y - cannon.y
       const distance = Math.hypot(dx, dy)
-      const aim = Math.atan2(dy, dx)
-      cannon.sprite.rotation = aim
+      const targetAngle = Math.atan2(dy, dx)
+      cannon.sprite.rotation = targetAngle
       cannon.cooldown -= dt
 
       if (
@@ -926,6 +1029,8 @@ export class Game {
         continue
       }
 
+      const aim = targetAngle + (Math.random() - 0.5) * 0.2
+      cannon.sprite.rotation = aim
       const muzzleX = cannon.x + Math.cos(aim) * CONFIG.cannonMuzzle
       const muzzleY = cannon.y + Math.sin(aim) * CONFIG.cannonMuzzle
       if (
@@ -947,7 +1052,9 @@ export class Game {
         Math.sin(aim) * 360,
         'cannon'
       )
-      cannon.cooldown = CONFIG.cannonReload
+      this.explode(muzzleX, muzzleY, 22)
+      cannon.cooldown = CONFIG.cannonReloadMin +
+        Math.random() * (CONFIG.cannonReloadMax - CONFIG.cannonReloadMin)
     }
   }
 
@@ -1178,6 +1285,69 @@ export class Game {
     }
   }
 
+  private hitCannonOnSegment(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number
+  ): IslandCannon | null {
+    const segmentX = endX - startX
+    const segmentY = endY - startY
+    const lengthSquared = segmentX * segmentX + segmentY * segmentY
+    let nearestProgress = Infinity
+    let hitCannon: IslandCannon | null = null
+
+    for (const cannon of this.cannons) {
+      if (cannon.destroyed) continue
+
+      const progress = lengthSquared > 0
+        ? Math.max(0, Math.min(1,
+            ((cannon.x - startX) * segmentX +
+              (cannon.y - startY) * segmentY) / lengthSquared
+          ))
+        : 0
+      const closestX = startX + segmentX * progress
+      const closestY = startY + segmentY * progress
+
+      if (
+        progress < nearestProgress &&
+        Math.hypot(closestX - cannon.x, closestY - cannon.y) <= 25
+      ) {
+        nearestProgress = progress
+        hitCannon = cannon
+      }
+    }
+
+    return hitCannon
+  }
+
+  private damageCannon(cannon: IslandCannon) {
+    if (cannon.destroyed) return
+
+    cannon.health--
+    cannon.hitFlash = 0.16
+    cannon.sprite.tint = 0xff9776
+    this.explode(cannon.x, cannon.y, cannon.health <= 0 ? 38 : 18)
+    cannon.healthBar.clear()
+
+    if (cannon.health <= 0) {
+      cannon.destroyed = true
+      cannon.sprite.parent?.removeChild(cannon.sprite)
+      cannon.healthBar.parent?.removeChild(cannon.healthBar)
+      cannon.sprite.destroy()
+      cannon.healthBar.destroy()
+      this.publishMissionProgress()
+      return
+    }
+
+    cannon.healthBar.roundRect(0, 0, 26, 4, 2)
+      .fill({ color: 0x541f1c, alpha: 0.95 })
+    cannon.healthBar.roundRect(0, 0, 26, 4, 2)
+      .stroke({ color: 0xf5e9c8, alpha: 0.9, width: 1 })
+    cannon.healthBar.roundRect(1, 1, 24 * cannon.health / 3, 2, 1)
+      .fill(cannon.health === 1 ? 0xff665f : 0xf1c75b)
+  }
+
   private updateBullets(dt: number) {
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const bullet = this.bullets[i]
@@ -1192,13 +1362,31 @@ export class Game {
         bullet.vy
       ) * dt
 
-      let hit = this.islands.segmentCollides(
-        previousX,
-        previousY,
-        bullet.sprite.x,
-        bullet.sprite.y,
-        5
-      )
+      let hit = false
+
+      if (bullet.owner === 'player') {
+        const cannon = this.hitCannonOnSegment(
+          previousX,
+          previousY,
+          bullet.sprite.x,
+          bullet.sprite.y
+        )
+
+        if (cannon) {
+          this.damageCannon(cannon)
+          hit = true
+        }
+      }
+
+      if (!hit) {
+        hit = this.islands.segmentCollides(
+          previousX,
+          previousY,
+          bullet.sprite.x,
+          bullet.sprite.y,
+          5
+        )
+      }
 
       if (!hit && bullet.owner === 'player') {
         for (const enemy of [...this.enemies]) {
@@ -1220,7 +1408,9 @@ export class Game {
             break
           }
         }
-      } else if (!hit && this.ship) {
+      }
+
+      if (!hit && bullet.owner !== 'player' && this.ship) {
         const distance = Math.hypot(
           bullet.sprite.x - this.ship.x,
           bullet.sprite.y - this.ship.y
@@ -1291,7 +1481,7 @@ export class Game {
     if (this.elapsed >= this.options.matchDuration) {
       this.elapsed = this.options.matchDuration
       this.timeText.text = 'TIME LEFT: 00:00'
-      this.endGame('victory')
+      this.endGame('time-up')
       return
     }
 
@@ -1372,6 +1562,9 @@ export class Game {
       )
     )
 
+    this.discoverNearbyIslands(previousShipX, previousShipY)
+    if (!this.running) return
+
     const isMoving = Math.hypot(
       this.ship.x - previousShipX,
       this.ship.y - previousShipY
@@ -1406,7 +1599,7 @@ export class Game {
     // Alternate Chaser and Shooter spawns
     this.spawnTimer += dt
 
-    if (this.spawnTimer >= this.options.spawnInterval) {
+    if (this.spawnTimer >= this.enemySpawnInterval) {
       this.spawnTimer = 0
 
       const first = this.nextEnemy
