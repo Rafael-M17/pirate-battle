@@ -1,0 +1,67 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pirate Battle - Tiles</title>
+  <style>
+    body {
+      background: #142333;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 12px;
+    }
+
+    .tile {
+      padding: 12px;
+      background: #263b50;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .tile img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+    }
+
+    .tile p {
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pirate Battle - Tile Gallery</h1>
+  <div id="gallery"></div>
+
+  <script>
+    const gallery = document.getElementById('gallery');
+
+    for (let i = 1; i <= 96; i++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+
+      const image = document.createElement('img');
+      image.src = `/assets/png/default/tiles/tile_${i}.png`;
+      image.alt = `Tile ${i}`;
+
+      const label = document.createElement('p');
+      label.textContent = `tile_${i}.png`;
+
+      tile.append(image, label);
+      gallery.appendChild(tile);
+    }
+  </script>
+</body>
+</html>
