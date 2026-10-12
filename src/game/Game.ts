@@ -147,6 +147,7 @@ export class Game {
   private world = new Container()
   private minimapLayer = new Container()
   private minimapFrame = new Graphics()
+  private minimapMask = new Graphics()
   private minimapIslands = new Graphics()
   private minimapEntities = new Graphics()
   private worldWidth = 0
@@ -191,7 +192,10 @@ export class Game {
     islandDiscovered: boolean,
     objectivesCompleted: boolean
   ) => void = () => undefined
-  private handleRendererResize = () => this.drawMinimap()
+  private handleRendererResize = () => {
+    this.layoutHud()
+    this.drawMinimap()
+  }
 
   constructor(options: GameOptions = DEFAULT_GAME_OPTIONS) {
     this.options = { ...options }
@@ -416,9 +420,7 @@ export class Game {
 
     this.world.addChild(this.ship)
 
-    this.scoreText.position.set(20, 15)
-    this.hpText.position.set(20, 45)
-    this.timeText.position.set(20, 75)
+    this.layoutHud()
     this.timeText.text =
       `TIME LEFT: ${String(Math.floor(this.options.matchDuration / 60)).padStart(2, '0')}:` +
       String(this.options.matchDuration % 60).padStart(2, '0')
@@ -431,8 +433,11 @@ export class Game {
     this.minimapLayer.addChild(
       this.minimapFrame,
       this.minimapIslands,
-      this.minimapEntities
+      this.minimapEntities,
+      this.minimapMask
     )
+    this.minimapIslands.mask = this.minimapMask
+    this.minimapEntities.mask = this.minimapMask
     this.app.stage.addChild(this.minimapLayer)
     this.app.renderer.on('resize', this.handleRendererResize)
 
@@ -718,6 +723,22 @@ export class Game {
     return water
   }
 
+  private layoutHud() {
+    // Keep the desktop HUD unchanged; compact only short landscape touch screens.
+    const compact = typeof window !== 'undefined' &&
+      window.matchMedia('(pointer: coarse) and (orientation: landscape) and (max-height: 600px)').matches
+    const size = compact ? 16 : 24
+    const left = compact ? 12 : 20
+    const top = compact ? 9 : 15
+    const gap = compact ? 20 : 30
+    this.scoreText.style.fontSize = size
+    this.hpText.style.fontSize = size
+    this.timeText.style.fontSize = size
+    this.scoreText.position.set(left, top)
+    this.hpText.position.set(left, top + gap)
+    this.timeText.position.set(left, top + gap * 2)
+  }
+
   private drawMinimap() {
     if (!this.ship || this.worldWidth === 0 || this.worldHeight === 0) {
       return
@@ -726,32 +747,32 @@ export class Game {
     const screenWidth = this.app.screen.width
     const compactMap = typeof window !== 'undefined' &&
       window.matchMedia('(pointer: coarse) and (orientation: landscape) and (max-height: 600px)').matches
-    const mapWidth = compactMap
-      ? Math.min(120, Math.max(95, screenWidth * 0.16))
-      : Math.min(190, Math.max(112, screenWidth * 0.34))
-    const mapHeight = mapWidth * 0.64
-    const inset = 8
+    const diameter = compactMap ? 88 : Math.min(190, Math.max(112, screenWidth * 0.34))
+    const radius = diameter / 2
+    const inset = compactMap ? 9 : 10
     const mapX = inset
     const mapY = inset
-    const mapInnerWidth = mapWidth - inset * 2
-    const mapInnerHeight = mapHeight - inset * 2
+    const mapInnerWidth = diameter - inset * 2
+    const mapInnerHeight = diameter - inset * 2
     const mapScaleX = mapInnerWidth / this.worldWidth
     const mapScaleY = mapInnerHeight / this.worldHeight
 
     this.minimapLayer.position.set(
-      screenWidth - mapWidth - 12,
-      compactMap ? 56 : 110
+      screenWidth - diameter - (compactMap ? 9 : 12),
+      compactMap ? 49 : 110
     )
 
+    // Circular frame and actual Pixi mask (not just a cosmetic circular border).
     this.minimapFrame.clear()
-    this.minimapFrame.roundRect(0, 0, mapWidth, mapHeight, 8)
-      .fill({ color: 0x062b3b, alpha: 0.9 })
-    this.minimapFrame.roundRect(0, 0, mapWidth, mapHeight, 8)
-      .stroke({ color: 0xb2e4d2, alpha: 0.85, width: 1.5 })
-    this.minimapFrame.rect(mapX, mapY, mapInnerWidth, mapInnerHeight)
-      .fill({ color: 0x087e9c, alpha: 0.82 })
-    this.minimapFrame.rect(mapX, mapY, mapInnerWidth, mapInnerHeight)
-      .stroke({ color: 0x73c5c1, alpha: 0.75, width: 1 })
+    this.minimapFrame.circle(radius, radius, radius - 1)
+      .fill({ color: 0x062b3b, alpha: 0.94 })
+    this.minimapFrame.circle(radius, radius, radius - 2)
+      .stroke({ color: 0xf0bf64, alpha: 0.95, width: 3 })
+    this.minimapFrame.circle(radius, radius, radius - inset + 1)
+      .fill({ color: 0x087e9c, alpha: 0.88 })
+    this.minimapMask.clear()
+    this.minimapMask.circle(radius, radius, radius - inset)
+      .fill(0xffffff)
 
     this.minimapIslands.clear()
     for (const island of this.islands.getPositions()) {
