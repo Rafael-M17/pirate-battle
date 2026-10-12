@@ -1513,3 +1513,13 @@
   .missionPanel:not(.isCollapsed) .missionList li { font-size: 9px; }
   .islandNotice, .missionCompleteNotice { top: 70px; }
 }
+/* Desktop: painel de missões abaixo do minimapa */
+@media (min-width: 900px) and (min-height: 650px) {
+  .game:not(.menuScreen) .missionPanel,
+  .game:not(.menuScreen) .missionPanel.isCollapsed {
+    top: 350px;
+    right: 18px;
+    left: auto;
+    transform: none;
+  }
+}
