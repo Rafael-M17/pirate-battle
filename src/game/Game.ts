@@ -15,8 +15,26 @@ import {
   type IslandCannon,
   type Island,
 } from './Islands'
+import { getGameEndReason, type GameEndReason } from './GameRules'
 type EnemyType = 'chaser' | 'shooter'
 type Weapon = 'front' | 'left' | 'right'
+
+export type TouchControl =
+  | 'forward'
+  | 'turn-left'
+  | 'turn-right'
+  | 'fire-front'
+  | 'fire-left'
+  | 'fire-right'
+
+const TOUCH_CONTROL_KEYS: Record<TouchControl, string> = {
+  forward: 'w',
+  'turn-left': 'a',
+  'turn-right': 'd',
+  'fire-front': ' ',
+  'fire-left': 'q',
+  'fire-right': 'e',
+}
 
 type Bullet = {
   sprite: Sprite
@@ -88,9 +106,17 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
 }
 
 export type GameResult = {
-  outcome: 'victory' | 'game-over' | 'time-up'
+  outcome: GameEndReason
   score: number
   survivedSeconds: number
+  matchId: string
+  completedAt: string
+  configuration: GameOptions
+}
+
+function createMatchId() {
+  return globalThis.crypto?.randomUUID?.() ??
+    `match-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export type MissionProgress = {
@@ -113,6 +139,7 @@ export const INITIAL_MISSION_PROGRESS: MissionProgress = {
 
 export class Game {
   private readonly options: GameOptions
+  private readonly matchId = createMatchId()
   private islands = new Islands()
   private app = new Application()
   private world = new Container()
@@ -126,6 +153,8 @@ export class Game {
   private textures: Record<string, Texture> = {}
 
   private keys = new Set<string>()
+  private keyboardKeys = new Set<string>()
+  private touchPointers = new Map<number, string>()
   private bullets: Bullet[] = []
   private enemies: Enemy[] = []
   private cannons: IslandCannon[] = []
@@ -137,6 +166,7 @@ export class Game {
   private score = 0
   private enemyShipsDefeated = 0
   private missionProgress: MissionProgress = { ...INITIAL_MISSION_PROGRESS }
+  private objectivesCompleted = false
   private elapsed = 0
   private spawnTimer = 0
   private minimapTimer = 0
@@ -156,7 +186,8 @@ export class Game {
   private onPauseChange: ((paused: boolean) => void) | null = null
   private onMissionProgress: (
     progress: MissionProgress,
-    islandDiscovered: boolean
+    islandDiscovered: boolean,
+    objectivesCompleted: boolean
   ) => void = () => undefined
   private handleRendererResize = () => this.drawMinimap()
 
@@ -213,16 +244,19 @@ export class Game {
 
     if (controls.includes(key)) {
       event.preventDefault()
+      this.keyboardKeys.add(key)
       this.keys.add(key)
     }
   }
 
   private keyUp = (event: KeyboardEvent) => {
-    this.keys.delete(event.key.toLowerCase())
+    const key = event.key.toLowerCase()
+    this.keyboardKeys.delete(key)
+    this.refreshInputKey(key)
   }
 
   private handleBlur = () => {
-    this.keys.clear()
+    this.clearInputs()
     this.pause()
   }
 
@@ -236,7 +270,8 @@ export class Game {
     onPauseChange: (paused: boolean) => void,
     onMissionProgress: (
       progress: MissionProgress,
-      islandDiscovered: boolean
+      islandDiscovered: boolean,
+      objectivesCompleted: boolean
     ) => void
   ) {
     this.onGameEnd = onGameEnd
@@ -315,6 +350,7 @@ export class Game {
       fortCannonsDestroyed: 0,
       fortCannonsRequired: this.cannons.length,
     }
+    this.objectivesCompleted = false
 
     this.ship = new Sprite(player)
     this.ship.anchor.set(0.5)
@@ -519,15 +555,19 @@ export class Game {
       enemyShipsDefeated: this.enemyShipsDefeated,
       fortCannonsDestroyed,
     }
-    this.onMissionProgress({ ...this.missionProgress }, islandDiscovered)
-
-    if (
+    const allObjectivesCompleted =
       this.missionProgress.islandsDiscovered >= this.missionProgress.islandsRequired &&
       this.missionProgress.enemyShipsDefeated >= this.missionProgress.enemyShipsRequired &&
       this.missionProgress.fortCannonsDestroyed >= this.missionProgress.fortCannonsRequired
-    ) {
-      this.endGame('victory')
-    }
+    const objectivesCompleted =
+      allObjectivesCompleted && !this.objectivesCompleted
+
+    if (objectivesCompleted) this.objectivesCompleted = true
+    this.onMissionProgress(
+      { ...this.missionProgress },
+      islandDiscovered,
+      objectivesCompleted
+    )
   }
 
   private discoverNearbyIslands(previousX: number, previousY: number) {
@@ -979,8 +1019,13 @@ export class Game {
         this.ship?.y ?? 0
       )
 
-      this.hpText.text = 'GAME OVER'
-      this.endGame('game-over')
+      this.hpText.text = 'SHIP DESTROYED'
+      const endReason = getGameEndReason(
+        this.health,
+        this.elapsed,
+        this.options.matchDuration
+      )
+      if (endReason) this.endGame(endReason)
     }
   }
 
@@ -988,7 +1033,7 @@ export class Game {
     if (!this.running) return
 
     this.running = false
-    this.keys.clear()
+    this.clearInputs()
 
     for (const bullet of this.bullets) {
       this.world.removeChild(bullet.sprite)
@@ -1000,6 +1045,9 @@ export class Game {
       outcome,
       score: this.score,
       survivedSeconds: Math.floor(this.elapsed),
+      matchId: this.matchId,
+      completedAt: new Date().toISOString(),
+      configuration: { ...this.options },
     })
   }
 
@@ -1478,10 +1526,17 @@ export class Game {
     if (!this.running) return
 
     this.elapsed += dt
-    if (this.elapsed >= this.options.matchDuration) {
+    const endReason = getGameEndReason(
+      this.health,
+      this.elapsed,
+      this.options.matchDuration
+    )
+    if (endReason) {
       this.elapsed = this.options.matchDuration
-      this.timeText.text = 'TIME LEFT: 00:00'
-      this.endGame('time-up')
+      if (endReason === 'time-up') {
+        this.timeText.text = 'TIME LEFT: 00:00'
+      }
+      this.endGame(endReason)
       return
     }
 
@@ -1637,16 +1692,47 @@ export class Game {
     if (!this.running || this.paused) return
 
     this.paused = true
-    this.keys.clear()
+    this.clearInputs()
     this.onPauseChange?.(true)
   }
 
   resume() {
     if (!this.running || !this.paused) return
 
-    this.keys.clear()
+    this.clearInputs()
     this.paused = false
     this.onPauseChange?.(false)
+  }
+
+  pressTouchControl(pointerId: number, control: TouchControl) {
+    if (!this.running || this.paused) return
+
+    const key = TOUCH_CONTROL_KEYS[control]
+    this.touchPointers.set(pointerId, key)
+    this.keys.add(key)
+  }
+
+  releaseTouchControl(pointerId: number) {
+    const key = this.touchPointers.get(pointerId)
+    if (!key) return
+
+    this.touchPointers.delete(pointerId)
+    this.refreshInputKey(key)
+  }
+
+  clearInputs() {
+    this.keyboardKeys.clear()
+    this.touchPointers.clear()
+    this.keys.clear()
+  }
+
+  private refreshInputKey(key: string) {
+    const heldByTouch = [...this.touchPointers.values()].includes(key)
+    if (this.keyboardKeys.has(key) || heldByTouch) {
+      this.keys.add(key)
+    } else {
+      this.keys.delete(key)
+    }
   }
 
   destroy() {
@@ -1666,6 +1752,6 @@ export class Game {
       this.app.destroy(true, { children: true })
     }
 
-    this.keys.clear()
+    this.clearInputs()
   }
 }

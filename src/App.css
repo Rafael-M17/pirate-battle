@@ -230,6 +230,324 @@
   background: rgb(15 69 83 / 90%);
 }
 
+.menu .menuDataButton {
+  min-width: 154px;
+  background: rgb(5 31 47 / 76%);
+  box-shadow: 0 6px 0 rgb(0 14 24 / 55%);
+  color: #fff0c3;
+}
+
+.menu .menuDataButton:hover {
+  background: rgb(15 69 83 / 92%);
+}
+
+.dataScreen {
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgb(255 209 102 / 32%);
+  background: rgb(4 28 43 / 82%);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.dataScreenHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.dataScreenHeader span {
+  color: #88c9c3;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.dataScreenHeader h2 {
+  margin: 2px 0 3px;
+  color: #ffd166;
+  font-size: 21px;
+  line-height: 1.1;
+}
+
+.dataScreenHeader small {
+  color: #afc7c7;
+  font-size: 10px;
+}
+
+.menu .dataBackButton,
+.dataPagination button,
+.networkScenarioControls > button,
+.dataError button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid rgb(255 209 102 / 58%);
+  border-radius: 4px;
+  background: rgb(7 44 61 / 92%);
+  box-shadow: none;
+  color: #ffe4a1;
+  font-size: 10px;
+}
+
+.menu .dataBackButton:hover,
+.dataPagination button:hover:not(:disabled),
+.networkScenarioControls > button:hover:not(:disabled),
+.dataError button:hover {
+  background: #18566a;
+}
+
+.networkScenarioControls {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+}
+
+.networkScenarioControls label,
+.matchRegistrationForm label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.networkScenarioControls label span,
+.matchRegistrationForm label span {
+  color: #adc4c1;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.networkScenarioControls select {
+  width: min(220px, 52vw);
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid rgb(255 209 102 / 42%);
+  border-radius: 4px;
+  background: #092c40;
+  color: #f1eee1;
+  font: inherit;
+  font-size: 10px;
+}
+
+.dataTableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgb(255 255 255 / 12%);
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  color: #d8e4e0;
+  font-size: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dataTable th {
+  padding: 8px 7px;
+  background: rgb(255 255 255 / 6%);
+  color: #d6bd7f;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.dataTable td {
+  padding: 8px 7px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.dataTable tbody tr:nth-child(even) {
+  background: rgb(255 255 255 / 3%);
+}
+
+.dataTable td strong,
+.dataTable td small {
+  display: block;
+}
+
+.dataTable td small {
+  margin-top: 2px;
+  color: #8fa8aa;
+  font-size: 8px;
+}
+
+.dataTable .tableScore {
+  color: #ffd166;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.dataPagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  color: #c0d2ce;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.dataPagination button:disabled,
+.networkScenarioControls > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dataFootnote {
+  margin-top: 8px !important;
+  color: #93aaab;
+  font-size: 8px !important;
+}
+
+.dataMessage {
+  padding: 22px 10px;
+  color: #b9ceca;
+  font-size: 11px !important;
+  text-align: center;
+}
+
+.dataError {
+  color: #ffb2a5;
+}
+
+.dataError button {
+  margin-top: 8px;
+}
+
+.lastResultPanel,
+.pendingMatchesPanel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgb(255 209 102 / 28%);
+  background: rgb(4 30 45 / 82%);
+  text-align: left;
+}
+
+.lastResultSummary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: #bcd0ca;
+  font-size: 9px;
+}
+
+.lastResultSummary span,
+.lastResultSummary small {
+  color: #d9bd77;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.lastResultSummary strong {
+  color: #ffe3a0;
+  font-size: 12px;
+}
+
+.lastResultPanel .matchRegistrationForm {
+  margin-top: 9px;
+}
+
+.pendingMatchesPanel h3 {
+  margin: 0 0 4px;
+  color: #ffd166;
+  font-size: 11px;
+}
+
+.pendingMatchesPanel > p {
+  color: #aac1be;
+  font-size: 9px !important;
+}
+
+.pendingMatchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+  color: #d8e4e0;
+  font-size: 9px;
+}
+
+.menu .pendingMatchRow button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 4px;
+  font-size: 9px;
+}
+
+.matchRegistrationForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  width: 100%;
+  margin: 14px 0 8px;
+  text-align: left;
+}
+
+.matchRegistrationForm input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 209 102 / 44%);
+  border-radius: 4px;
+  background: rgb(4 25 39 / 90%);
+  color: #fff7df;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.matchRegistrationForm input[aria-invalid='true'] {
+  border-color: #ff8175;
+}
+
+.resultCard .matchRegistrationForm button,
+.lastResultPanel .matchRegistrationForm button {
+  width: auto;
+  min-width: 132px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #ffe39a;
+  border-radius: 4px;
+  background: #d99532;
+  color: #182f3a;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.matchRegistrationForm button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.formError,
+.submissionMessage {
+  grid-column: 1 / -1;
+  margin: 0 !important;
+  color: #ffb2a5;
+  font-size: 10px !important;
+}
+
+.submissionMessage {
+  margin-top: 6px !important;
+  color: #91e5ad;
+}
+
 .voyageMeta {
   display: flex;
   align-items: center;
@@ -453,6 +771,140 @@
   animation: result-enter 220ms ease-out both;
 }
 
+.missionCompleteNotice {
+  position: absolute;
+  top: 154px;
+  left: 50%;
+  z-index: 2;
+  padding: 8px 14px;
+  border: 1px solid rgb(104 228 156 / 72%);
+  border-radius: 6px;
+  background: rgb(4 30 45 / 92%);
+  color: #8bf0b0;
+  font-size: 12px;
+  font-weight: 900;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.controlInstructions {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  padding: 6px 10px;
+  border: 1px solid rgb(255 209 102 / 22%);
+  border-radius: 5px;
+  background: rgb(4 30 45 / 76%);
+  color: #d5e3df;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.orientationHint,
+.touchControls {
+  display: none;
+}
+
+.touchControls,
+.touchControls * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touchControls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 4;
+  align-items: flex-end;
+  justify-content: space-between;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.touchMovePad {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(42px, 12vw, 54px));
+  grid-template-rows: repeat(2, clamp(44px, 12vw, 54px));
+  gap: 5px;
+  pointer-events: none;
+}
+
+.touchAttackPad {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(44px, 12vw, 58px));
+  gap: 5px;
+  pointer-events: none;
+}
+
+.touchControl {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 2px;
+  border: 1px solid rgb(255 220 143 / 72%);
+  border-radius: 8px;
+  background: rgb(5 35 51 / 78%);
+  box-shadow: 0 3px 9px rgb(0 0 0 / 28%);
+  color: #fff0c8;
+  font: inherit;
+  line-height: 1;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.touchControl span {
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.touchControl small {
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.touchControl:active,
+.touchControl[aria-pressed='true'] {
+  border-color: #fff1bd;
+  background: rgb(199 129 39 / 86%);
+  color: #fff8df;
+  transform: scale(0.96);
+}
+
+.touchForward {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.touchTurnLeft {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.touchTurnRight {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.touchFrontFire {
+  background: rgb(129 64 37 / 82%);
+}
+
 .footer {
   margin-top: 30px !important;
   color: #9bb7ba;
@@ -478,6 +930,8 @@
 
 .resultCard {
   width: min(100%, 480px);
+  max-height: calc(100svh - 36px);
+  overflow-y: auto;
   padding: clamp(28px, 6vw, 48px);
   border: 1px solid rgb(255 209 102 / 45%);
   border-radius: 24px;
@@ -568,6 +1022,56 @@
   background: rgb(255 255 255 / 9%);
 }
 
+.submissionMessage {
+  color: #91e5ad;
+}
+
+.pendingMatchesPanel .pendingMatchRow button:disabled {
+  opacity: 0.5;
+}
+
+@media (max-width: 760px) {
+  .dataScreen {
+    padding: 12px 9px;
+  }
+
+  .dataScreenHeader h2 {
+    font-size: 18px;
+  }
+
+  .networkScenarioControls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .networkScenarioControls select {
+    width: 100%;
+  }
+
+  .networkScenarioControls > button {
+    width: 100%;
+  }
+
+  .dataTable {
+    min-width: 560px;
+  }
+
+  .lastResultPanel,
+  .pendingMatchesPanel {
+    padding: 10px;
+  }
+
+  .matchRegistrationForm {
+    grid-template-columns: 1fr;
+  }
+
+  .matchRegistrationForm button,
+  .resultCard .matchRegistrationForm button,
+  .lastResultPanel .matchRegistrationForm button {
+    width: 100%;
+  }
+}
+
 @keyframes result-enter {
   from {
     opacity: 0;
@@ -583,8 +1087,64 @@
 @media (prefers-reduced-motion: reduce) {
   .resultCard,
   .islandNotice,
+  .missionCompleteNotice,
   .menuShip {
     animation: none;
+  }
+}
+
+@media (pointer: coarse), (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .touchControls {
+    display: flex;
+  }
+
+  .controlInstructions {
+    bottom: 126px;
+    max-width: calc(100% - 32px);
+    font-size: 8px;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 760px) and (orientation: portrait) {
+  .orientationHint {
+    position: absolute;
+    top: 112px;
+    left: 50%;
+    z-index: 2;
+    display: block;
+    padding: 5px 9px;
+    border: 1px solid rgb(255 209 102 / 40%);
+    border-radius: 5px;
+    background: rgb(4 30 45 / 78%);
+    color: #ffe7a0;
+    font-size: 9px;
+    font-weight: 900;
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .missionPanel,
+  .missionPanel.isCollapsed {
+    top: 112px;
+    right: auto;
+    left: 12px;
+    width: min(220px, 28vw);
+  }
+
+  .controlInstructions {
+    bottom: 96px;
+  }
+
+  .touchControls {
+    bottom: 8px;
+  }
+
+  .touchMovePad {
+    grid-template-rows: repeat(2, 44px);
+    gap: 4px;
   }
 }
 
