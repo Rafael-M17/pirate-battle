@@ -62,12 +62,12 @@ export function createIslandLayout(width: number, height: number): Island[] {
     style: IslandStyle
     missionIsland: boolean
   }> = [
-    { x: 0.13, y: 0.17, radius: 154, style: 'tropical', missionIsland: true },
-    { x: 0.86, y: 0.17, radius: 170, style: 'rocky', missionIsland: true },
-    { x: 0.13, y: 0.83, radius: 142, style: 'wreck', missionIsland: true },
-    { x: 0.87, y: 0.83, radius: 172, style: 'fortified', missionIsland: true },
-    { x: 0.5, y: 0.12, radius: 52, style: 'rocky', missionIsland: false },
-    { x: 0.5, y: 0.88, radius: 48, style: 'tropical', missionIsland: false },
+    { x: 0.19, y: 0.22, radius: 154, style: 'tropical', missionIsland: true },
+    { x: 0.81, y: 0.22, radius: 170, style: 'rocky', missionIsland: true },
+    { x: 0.19, y: 0.78, radius: 142, style: 'wreck', missionIsland: true },
+    { x: 0.81, y: 0.78, radius: 172, style: 'fortified', missionIsland: true },
+    { x: 0.5, y: 0.16, radius: 52, style: 'rocky', missionIsland: false },
+    { x: 0.5, y: 0.84, radius: 48, style: 'tropical', missionIsland: false },
   ]
 
   return positions.map((position, index) => ({
@@ -386,28 +386,79 @@ export class Islands {
     deltaY: number,
     radius: number
   ) {
+    // A collision is calculated at the visible beach edge (scale 1.12).
+    // Always start from a legal point: otherwise a ship that touches a shore
+    // from inside the margin can become unable to move in any direction.
+    let { x, y } = this.resolve(startX, startY, radius)
     const distance = Math.hypot(deltaX, deltaY)
-    const samples = Math.max(1, Math.ceil(distance / Math.max(6, radius * 0.35)))
+    const samples = Math.max(1, Math.ceil(distance / 6))
     const stepX = deltaX / samples
     const stepY = deltaY / samples
-    let x = startX
-    let y = startY
+    const canMove = (targetX: number, targetY: number) =>
+      !this.segmentCollides(x, y, targetX, targetY, radius)
 
     for (let index = 0; index < samples; index++) {
-      const nextX = x + stepX
-      const nextY = y + stepY
-
-      if (!this.segmentCollides(x, y, nextX, nextY, radius)) {
-        x = nextX
-        y = nextY
+      const targetX = x + stepX
+      const targetY = y + stepY
+      if (canMove(targetX, targetY)) {
+        x = targetX
+        y = targetY
         continue
       }
 
-      if (!this.segmentCollides(x, y, nextX, y, radius)) {
-        x = nextX
-      } else if (!this.segmentCollides(x, y, x, nextY, radius)) {
-        y = nextY
+      // Project the intended movement onto the shore tangent. Axis-only
+      // fallback is not enough for diagonal coastlines and concave corners.
+      let bestX = x
+      let bestY = y
+      let bestProgress = 0
+
+      for (const island of this.obstacles) {
+        const dx = targetX - island.x
+        const dy = targetY - island.y
+        const angle = Math.atan2(dy, dx)
+        const boundary = islandBoundaryRadius(island, angle) * 1.12 + radius
+        if (Math.hypot(dx, dy) > boundary + 18) continue
+
+        // Estimate the normal from the local contour, rather than assuming
+        // the island is a perfect circle.
+        const epsilon = 0.015
+        const previousAngle = angle - epsilon
+        const nextAngle = angle + epsilon
+        const previousRadius = islandBoundaryRadius(island, previousAngle) * 1.12 + radius
+        const nextRadius = islandBoundaryRadius(island, nextAngle) * 1.12 + radius
+        const tangentX = (Math.cos(nextAngle) * nextRadius - Math.cos(previousAngle) * previousRadius)
+        const tangentY = (Math.sin(nextAngle) * nextRadius - Math.sin(previousAngle) * previousRadius)
+        const tangentLength = Math.hypot(tangentX, tangentY)
+        if (tangentLength < 0.001) continue
+        const unitX = tangentX / tangentLength
+        const unitY = tangentY / tangentLength
+        const tangentMovement = stepX * unitX + stepY * unitY
+        for (const fraction of [1, 0.5, 0.25]) {
+          const candidateX = x + unitX * tangentMovement * fraction
+          const candidateY = y + unitY * tangentMovement * fraction
+          const progress = Math.hypot(candidateX - x, candidateY - y)
+          if (progress > bestProgress && canMove(candidateX, candidateY)) {
+            bestX = candidateX
+            bestY = candidateY
+            bestProgress = progress
+          }
+        }
       }
+
+      for (const [candidateX, candidateY] of [
+        [x + stepX, y],
+        [x, y + stepY],
+      ]) {
+        const progress = Math.hypot(candidateX - x, candidateY - y)
+        if (progress > bestProgress && canMove(candidateX, candidateY)) {
+          bestX = candidateX
+          bestY = candidateY
+          bestProgress = progress
+        }
+      }
+
+      x = bestX
+      y = bestY
     }
 
     return { x, y }
@@ -518,18 +569,20 @@ export class Islands {
     let resultX = x
     let resultY = y
 
-    for (const island of this.obstacles) {
-      const dx = resultX - island.x
-      const dy = resultY - island.y
-      const distance = Math.hypot(dx, dy)
-      const angle = Math.atan2(dy, dx)
-      const minimum = islandBoundaryRadius(island, angle) + radius
+    for (let pass = 0; pass < 3; pass++) {
+      for (const island of this.obstacles) {
+        const dx = resultX - island.x
+        const dy = resultY - island.y
+        const distance = Math.hypot(dx, dy)
+        const angle = Math.atan2(dy, dx)
+        const minimum = islandBoundaryRadius(island, angle) * 1.12 + radius + 1
 
-      if (distance < minimum) {
-        const resolvedAngle = distance > 0 ? angle : 0
+        if (distance < minimum) {
+          const resolvedAngle = distance > 0 ? angle : 0
 
-        resultX = island.x + Math.cos(resolvedAngle) * minimum
-        resultY = island.y + Math.sin(resolvedAngle) * minimum
+          resultX = island.x + Math.cos(resolvedAngle) * minimum
+          resultY = island.y + Math.sin(resolvedAngle) * minimum
+        }
       }
     }
 

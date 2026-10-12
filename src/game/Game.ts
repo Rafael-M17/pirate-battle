@@ -21,6 +21,7 @@ type Weapon = 'front' | 'left' | 'right'
 
 export type TouchControl =
   | 'forward'
+  | 'backward'
   | 'turn-left'
   | 'turn-right'
   | 'fire-front'
@@ -29,6 +30,7 @@ export type TouchControl =
 
 const TOUCH_CONTROL_KEYS: Record<TouchControl, string> = {
   forward: 'w',
+    backward: 's',
   'turn-left': 'a',
   'turn-right': 'd',
   'fire-front': ' ',
@@ -291,8 +293,9 @@ export class Game {
       return
     }
 
-    this.worldWidth = this.app.screen.width * 3
-    this.worldHeight = this.app.screen.height * 3
+    // Preserve maneuvering room around the north/south islands on short landscape screens.
+    this.worldWidth = Math.max(2400, this.app.screen.width * 3)
+    this.worldHeight = Math.max(1800, this.app.screen.height * 3)
 
     const water = this.createWaterBackground()
     const islandContainer = await this.islands.create(
@@ -721,7 +724,11 @@ export class Game {
     }
 
     const screenWidth = this.app.screen.width
-    const mapWidth = Math.min(190, Math.max(112, screenWidth * 0.34))
+    const compactMap = typeof window !== 'undefined' &&
+      window.matchMedia('(pointer: coarse) and (orientation: landscape) and (max-height: 600px)').matches
+    const mapWidth = compactMap
+      ? Math.min(120, Math.max(95, screenWidth * 0.16))
+      : Math.min(190, Math.max(112, screenWidth * 0.34))
     const mapHeight = mapWidth * 0.64
     const inset = 8
     const mapX = inset
@@ -733,7 +740,7 @@ export class Game {
 
     this.minimapLayer.position.set(
       screenWidth - mapWidth - 12,
-      110
+      compactMap ? 56 : 110
     )
 
     this.minimapFrame.clear()

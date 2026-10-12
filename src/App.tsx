@@ -819,6 +819,20 @@ function App() {
                 <span aria-hidden="true">&#9650;</span>
                 <small>MOVE</small>
               </button>
+              
+<button
+  className="touchControl touchBackward"
+  aria-label="Move backward"
+  aria-pressed={activeTouchControls.includes('backward')}
+  onPointerDown={event => beginTouchControl(event, 'backward')}
+  onPointerUp={endTouchControl}
+  onPointerCancel={endTouchControl}
+  onLostPointerCapture={endTouchControl}
+>
+  <span aria-hidden="true">&#9660;</span>
+  <small>BACK</small>
+</button>
+
               <button
                 className="touchControl touchTurnLeft"
                 aria-label="Turn left"
