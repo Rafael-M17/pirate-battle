@@ -30,7 +30,7 @@ function writeJson<T>(key: string, value: T) {
 export function getPlayerId() {
   let playerId = readJson<string | null>(PLAYER_ID_STORAGE_KEY, null)
   if (!playerId) {
-    playerId = `player-${crypto.randomUUID()}`
+playerId = `player-${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
     writeJson(PLAYER_ID_STORAGE_KEY, playerId)
   }
   return playerId
